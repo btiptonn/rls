@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RLS — Building</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Residential Laundry System — Building</h1>
+  </header>
+
+  <main class="container">
+    <section class="building-card">
+      <svg class="building-svg" viewBox="0 0 200 200" aria-hidden>
+        <rect x="10" y="10" width="180" height="180" rx="8" stroke="#333" fill="#f6f8fb"/>
+        <rect x="30" y="30" width="40" height="40" fill="#dfeaf8"/>
+        <rect x="80" y="30" width="40" height="40" fill="#dfeaf8"/>
+        <rect x="130" y="30" width="40" height="40" fill="#dfeaf8"/>
+      </svg>
+
+      <div class="floors">
+        <a class="floor-btn" href="washer.html">Floor 0 — Washer (1)</a>
+      </div>
+    </section>
+
+    <section class="instructions">
+      <h2>Live system</h2>
+      <ul>
+        <li>This UI updates from the Pico via the server.</li>
+        <li>RFID, cycle start/stop, and vibration are controlled by the device.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
