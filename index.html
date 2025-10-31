@@ -3,100 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RLS — Building</title>
-
+  <title>Residential Laundry System — Building</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f7f9fc; color: #222; }
-    .site-header { background: #2b6cb0; color: white; padding: 1rem; text-align: center; }
-    .container { padding: 1rem 2rem; }
-    .building-card { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-    .building-svg { max-width: 240px; }
-    .floor-btn {
-      display: inline-block; background: #bbb; color: white;
-      padding: 0.6rem 1rem; border-radius: 8px; text-decoration: none;
-      transition: background 0.3s;
-    }
-    .floor-btn.idle { background: #7f8c8d; }
-    .floor-btn.running { background: #27ae60; }
-    .floor-btn.aborted { background: #e74c3c; }
-    .floor-btn.complete { background: #f1c40f; color: #222; }
-    .instructions {
-      margin-top: 2rem; background: #fff; padding: 1rem 1.5rem;
-      border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .instructions h2 { margin-top: 0; color: #2b6cb0; }
-    .status-text { margin-top: 1rem; font-style: italic; color: #777; }
+    body { font-family: Arial, sans-serif; background:#f6f8fb; margin:0; }
+    header { background:#2a6fb5; color:white; padding:16px; font-size:1.4em; }
+    .container { padding:20px; }
+    .floor-btn { display:block; background:#e5ecf7; padding:14px; margin:10px 0; border-radius:6px; text-decoration:none; color:#222; font-weight:bold; text-align:center; }
+    .floor-btn.running { background:#c4f0c2; }
+    .floor-btn.aborted { background:#f5b7b1; }
+    .floor-btn.complete { background:#b3d8ff; }
+    .floor-btn.idle { background:#e5ecf7; }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <h1>Residential Laundry System — Building</h1>
-  </header>
+  <header>Residential Laundry System — Building</header>
 
   <main class="container">
-    <section class="building-card">
-      <svg class="building-svg" viewBox="0 0 200 200" aria-hidden>
-        <rect x="10" y="10" width="180" height="180" rx="8" stroke="#333" fill="#f6f8fb"/>
-        <rect x="30" y="30" width="40" height="40" fill="#dfeaf8"/>
-        <rect x="80" y="30" width="40" height="40" fill="#dfeaf8"/>
-        <rect x="130" y="30" width="40" height="40" fill="#dfeaf8"/>
-      </svg>
-
-      <div class="floors">
-        <a id="washerBtn" class="floor-btn idle" href="washer.html">Floor 0 — Washer (1)</a>
-      </div>
-
-      <div id="statusText" class="status-text">Waiting for connection...</div>
-    </section>
-
-    <section class="instructions">
-      <h2>Live system</h2>
-      <ul>
-        <li>Updates only when Pico sends new data.</li>
-        <li>If you see "Waiting for connection", your Pico hasn’t posted yet.</li>
-        <li>Updates only when the Pico sends new data.</li>
-        <li>If you see “Waiting for connection,” your Pico hasn’t posted yet.</li>
-      </ul>
-    </section>
+    <a id="washerBtn" class="floor-btn idle" href="washer.html">Floor 0 — Washer (1) — Idle</a>
+    <p id="statusText">Waiting for Pico data...</p>
   </main>
 
   <script>
-  // Use ONLY your live Render backend:
-  const INDEX_SERVER = "https://rls-uvzg.onrender.com/api/state";
+    const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-  async function updateIndex() {
-    const washerBtn = document.getElementById("washerBtn");
-    const statusText = document.getElementById("statusText");
+    async function updateIndex() {
+      const washerBtn = document.getElementById("washerBtn");
+      const statusText = document.getElementById("statusText");
 
-    try {
-      const res = await fetch(INDEX_SERVER, { cache: "no-store" });
-      if (!res.ok) throw new Error("Bad response");
-      const data = await res.json();
+      try {
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("Bad response");
+        const data = await res.json();
 
-      if (!data || data.rfid === "None") {
+        const state = data.state || "Idle";
+        washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
+        washerBtn.className = `floor-btn ${state.toLowerCase()}`;
+
+        statusText.textContent =
+          state === "Running"
+            ? `Washer active (${data.time})`
+            : state === "Aborted"
+            ? "Washer aborted due to inactivity"
+            : state === "Complete"
+            ? "Washer finished cycle"
+            : "Waiting for Pico data...";
+      } catch (err) {
         washerBtn.className = "floor-btn idle";
-        washerBtn.textContent = "Floor 0 — Washer (1) — Idle";
-        statusText.textContent = "Waiting for Pico data...";
-        return;
+        washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
+        statusText.textContent = "Server not reachable.";
       }
-
-      let stateClass = "idle";
-      if (data.state === "Running") stateClass = "running";
-      else if (data.state === "Aborted") stateClass = "aborted";
-      else if (data.state === "Complete") stateClass = "complete";
-
-      washerBtn.className = `floor-btn ${stateClass}`;
-      washerBtn.textContent = `Floor 0 — Washer (1) — ${data.state}`;
-      statusText.textContent = `Last update from Pico (${data.rfid})`;
-    } catch (err) {
-      washerBtn.className = "floor-btn idle";
-      washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
-      statusText.textContent = "Server not reachable or Pico offline.";
     }
-  }
 
-  setInterval(updateIndex, 2000);
-  updateIndex();
-</script>
+    setInterval(updateIndex, 3000);
+    updateIndex();
+  </script>
 </body>
 </html>
