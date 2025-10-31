@@ -60,7 +60,7 @@
   </main>
 
   <script>
-    const SERVER = "https://rls-uvzg.onrender.com/api/state";
+    const WASHER_SERVER = "https://rls-uvzg.onrender.com/api/state";
     let lastState = "";
 
     function formatTime(seconds) {
@@ -70,9 +70,9 @@
       return `${h}:${m}:${s}`;
     }
 
-    async function update() {
+    async function updateWasher() {
       try {
-        const res = await fetch(SERVER, { cache: "no-store" });
+        const res = await fetch(WASHER_SERVER, { cache: "no-store" });
         const data = await res.json();
 
         document.getElementById("rfidStatus").textContent = data.rfid;
@@ -96,8 +96,8 @@
       }
     }
 
-    setInterval(update, 2000);
-    update();
+    setInterval(updateWasher, 2000);
+    updateWasher();
   </script>
 </body>
 </html>
