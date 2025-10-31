@@ -1,103 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Washer — Machine 1</title>
-
   <style>
-    body { font-family: system-ui, sans-serif; background: #f7f9fc; color: #222; margin: 0; }
-    .site-header { background: #2b6cb0; color: white; padding: 1rem; text-align: center; position: relative; }
-    .back { position: absolute; left: 1rem; top: 1rem; color: white; text-decoration: none; font-weight: bold; }
-    .container { padding: 1rem 2rem; }
-    .machine-status {
-      background: white; padding: 1rem 1.5rem; border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .status-row { display: flex; justify-content: space-between; margin-bottom: 1rem; }
-    .led-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-    .rgb-led {
-      width: 40px; height: 40px; border-radius: 50%; background: #ccc;
-      border: 2px solid #333;
-    }
-    .rgb-led.off { background: #aaa; }
-    .rgb-led.green { background: #27ae60; }
-    .rgb-led.red { background: #e74c3c; }
-    .rgb-led.yellow { background: #f1c40f; }
-    .log { margin-top: 2rem; }
-    #eventLog { list-style: none; padding: 0; }
-    #eventLog li { background: #fff; border: 1px solid #ddd; margin-bottom: 4px; padding: 6px 10px; border-radius: 6px; font-size: 0.95rem; }
+    body { font-family: Arial, sans-serif; background: #f6f9fc; margin: 0; }
+    header { background: #2a6fb5; color: white; padding: 16px; font-size: 1.4em; }
+    .card { background: white; margin: 20px auto; padding: 20px; border-radius: 8px; width: 80%; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .led { width: 40px; height: 40px; border-radius: 50%; display: inline-block; margin-right: 10px; border: 2px solid #333; vertical-align: middle; }
+    .eventlog { margin: 20px auto; width: 80%; background: #fff; padding: 16px; border-radius: 8px; }
+    .logentry { border-bottom: 1px solid #ddd; padding: 4px 0; }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <a class="back" href="index.html">← Back</a>
-    <h1>Washer — Machine 1</h1>
-  </header>
+  <header>Washer — Machine 1</header>
 
-  <main class="container">
-    <section class="machine-status">
-      <div class="status-row">
-        <div><strong>RFID:</strong> <span id="rfidStatus">Not scanned</span></div>
-        <div><strong>Machine:</strong> <span id="machineState">Idle</span></div>
-      </div>
+  <div class="card">
+    <div><strong>RFID:</strong> <span id="rfidText">—</span></div>
+    <div style="margin-top:10px">
+      <div id="led" class="led"></div>
+      <span><strong>Machine:</strong> <span id="stateText">Loading...</span></span>
+    </div>
+    <p style="margin-top:10px">
+      Cycle timer: <span id="timerText">00:00</span><br>
+      Expected length: <span id="expectedText">0</span> min
+    </p>
+  </div>
 
-      <div class="led-row">
-        <div class="led-label">RGB LED</div>
-        <div id="rgbLed" class="rgb-led off" aria-hidden></div>
-      </div>
-
-      <div class="timers">
-        <div>Cycle timer: <span id="cycleTimer">00:00:00</span></div>
-        <div>Expected length: <span id="expected">0</span> min</div>
-      </div>
-    </section>
-
-    <section class="log">
-      <h3>Event log</h3>
-      <ul id="eventLog"></ul>
-    </section>
-  </main>
+  <div class="eventlog">
+    <h3>Event log</h3>
+    <div id="log"></div>
+  </div>
 
   <script>
-    const WASHER_SERVER = "https://rls-uvzg.onrender.com/api/state";
-    let lastState = "";
+    const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-    function formatTime(seconds) {
-      const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
-      const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-      const s = String(seconds % 60).padStart(2, "0");
-      return `${h}:${m}:${s}`;
-    }
-
-    async function updateWasher() {
+    async function fetchState() {
       try {
-        const res = await fetch(WASHER_SERVER, { cache: "no-store" });
+        const res = await fetch(API_URL);
         const data = await res.json();
 
-        document.getElementById("rfidStatus").textContent = data.rfid;
-        document.getElementById("machineState").textContent = data.state;
-        document.getElementById("expected").textContent = Math.floor((parseInt(data.time) || 0) / 60);
+        // Update elements
+        document.getElementById("rfidText").textContent = data.rfid || "—";
+        document.getElementById("stateText").textContent = data.state || "Idle";
+        document.getElementById("timerText").textContent = data.time || "00:00";
+        document.getElementById("expectedText").textContent = data.expected || 0;
 
-        const led = document.getElementById("rgbLed");
-        led.className = "rgb-led off";
-        if (data.state === "Running") led.classList.add("green");
-        else if (data.state === "Aborted") led.classList.add("red");
-        else if (data.state === "Complete") led.classList.add("yellow");
+        const led = document.getElementById("led");
+        if (data.state === "Running") led.style.background = "green";
+        else if (data.state === "Complete") led.style.background = "blue";
+        else if (data.state === "Aborted") led.style.background = "red";
+        else if (data.state === "Booted") led.style.background = "yellow";
+        else led.style.background = "gray";
 
-        if (lastState !== data.state) {
-          const li = document.createElement("li");
-          li.textContent = `State changed to "${data.state}" — ${new Date().toLocaleTimeString()}`;
-          document.getElementById("eventLog").prepend(li);
-          lastState = data.state;
-        }
+        addLog(`State: ${data.state}, Timer: ${data.time}`);
       } catch (err) {
-        console.error("Error fetching state:", err);
+        console.error("Fetch error:", err);
       }
     }
 
-    setInterval(updateWasher, 2000);
-    updateWasher();
+    function addLog(msg) {
+      const logDiv = document.getElementById("log");
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement("div");
+      entry.className = "logentry";
+      entry.textContent = `${msg} — ${time}`;
+      logDiv.prepend(entry);
+    }
+
+    setInterval(fetchState, 3000);
+    fetchState();
   </script>
 </body>
 </html>
