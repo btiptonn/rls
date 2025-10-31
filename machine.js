@@ -1,4 +1,4 @@
-// js/machine.js
+// js/machine.js — GitHub Pages safe
 (function () {
   const rfidEl = document.getElementById("rfidStatus");
   const machineEl = document.getElementById("machineState");
@@ -8,99 +8,52 @@
   const expectedEl = document.getElementById("expected");
   const logUl = document.getElementById("eventLog");
 
-  let negSeconds = 0;
-  let lastRemaining = 0;
-  let tickTimer = null;
-  let negTimer = null;
-
-  function fmtHMS(sec) {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    return [h, m, s].map(v => String(v).padStart(2, "0")).join(":");
+  function setLed(color) {
+    rgbLedEl.className = `rgb-led ${color}`;
   }
 
-  function setLed(state, inGrace) {
-    // Expect CSS classes: .rgb-led.off/.green/.yellow/.red
-    rgbLedEl.classList.remove("off", "green", "yellow", "red");
+  let state = "Idle";
+  let remaining = 1800; // 30 min
+  let neg = 0;
+  let tick;
+
+  function updateDisplay() {
+    machineEl.textContent = state;
+    rfidEl.textContent = state === "Idle" ? "Not scanned" : "TAG1234";
+    expectedEl.textContent = (remaining / 60).toFixed(0);
+    const m = Math.floor(Math.abs(remaining) / 60);
+    const s = String(Math.abs(remaining) % 60).padStart(2, "0");
+    cycleTimerEl.textContent = `${m}:${s}`;
+    negTimerEl.textContent = neg;
+
+    if (state === "Idle") setLed("off");
+    else if (state === "Running") setLed("green");
+    else if (state === "Aborted") setLed("red");
+    else if (state === "Complete") setLed("yellow");
+
+    logUl.innerHTML = `<li>${new Date().toLocaleTimeString()} — ${state}</li>` + logUl.innerHTML;
+  }
+
+  setInterval(() => {
+    const order = ["Idle", "Running", "Aborted", "Complete"];
+    state = order[(order.indexOf(state) + 1) % order.length];
+    remaining = 1800;
+    neg = 0;
+    clearInterval(tick);
     if (state === "Running") {
-      rgbLedEl.classList.add(inGrace ? "yellow" : "green");
-    } else if (state === "Aborted") {
-      rgbLedEl.classList.add("red");
+      tick = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) clearInterval(tick);
+        updateDisplay();
+      }, 1000);
     } else if (state === "Complete") {
-      rgbLedEl.classList.add("green");
-    } else {
-      rgbLedEl.classList.add("off");
-    }
-  }
-
-  function setMachineState(w) {
-    // RFID
-    rfidEl.textContent = w.rfid ? w.rfid : "Not scanned";
-    // Machine state
-    machineEl.textContent = w.state;
-
-    // Expected
-    expectedEl.textContent = w.expected_min;
-
-    // Remaining & LED
-    lastRemaining = Math.max(0, w.remaining_s || 0);
-    cycleTimerEl.textContent = fmtHMS(lastRemaining);
-    setLed(w.state, w.in_grace);
-
-    // Event log (top N)
-    if (Array.isArray(w.log)) {
-      logUl.innerHTML = "";
-      w.log.slice(0, 20).forEach(item => {
-        const li = document.createElement("li");
-        li.textContent = item;
-        logUl.appendChild(li);
-      });
-    }
-
-    // timers
-    clearInterval(tickTimer);
-    clearInterval(negTimer);
-    negSeconds = 0;
-    negTimerEl.textContent = String(negSeconds);
-
-    if (w.state === "Running") {
-      // decrement the displayed timer each second (front-end only)
-      tickTimer = setInterval(() => {
-        if (lastRemaining > 0) {
-          lastRemaining -= 1;
-          cycleTimerEl.textContent = fmtHMS(lastRemaining);
-        }
-      }, 1000);
-    } else if (w.state === "Complete") {
-      // start negative timer (how long since it completed)
-      negTimer = setInterval(() => {
-        negSeconds += 1;
-        negTimerEl.textContent = String(negSeconds);
+      tick = setInterval(() => {
+        neg++;
+        updateDisplay();
       }, 1000);
     }
-  }
+    updateDisplay();
+  }, 8000);
 
-  function handleState(w) {
-    window.__washer = w;
-    setMachineState(w);
-  }
-
-  // Prefer SSE
-  let usingSSE = false;
-  try {
-    const es = new EventSource("/api/stream");
-    es.addEventListener("init", (e) => { usingSSE = true; handleState(JSON.parse(e.data)); });
-    es.addEventListener("state", (e) => handleState(JSON.parse(e.data)));
-    es.onerror = () => { /* if it errors, polling fallback below will pick up */ };
-  } catch {}
-
-  // Poll fallback every 2s (in case SSE isn’t available)
-  setInterval(async () => {
-    if (usingSSE) return;
-    try {
-      const r = await fetch("/api/machines/washer-1/state");
-      handleState(await r.json());
-    } catch {}
-  }, 2000);
+  updateDisplay();
 })();

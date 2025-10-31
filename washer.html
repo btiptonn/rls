@@ -4,7 +4,79 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Washer — Machine 1</title>
-  <link rel="stylesheet" href="css/style.css" />
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      background: #f7f9fc;
+      color: #222;
+    }
+
+    .site-header {
+      background: #2b6cb0;
+      color: white;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .back {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .container { padding: 1.5rem 2rem; }
+
+    .machine-status {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 500;
+      margin-bottom: 1rem;
+    }
+
+    .rgb-led {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #bbb;
+      margin-top: 0.5rem;
+    }
+
+    .rgb-led.green { background: #27ae60; }
+    .rgb-led.red { background: #e74c3c; }
+    .rgb-led.yellow { background: #f1c40f; }
+    .rgb-led.off { background: #999; }
+
+    .timers div { margin: 0.4rem 0; }
+
+    .log {
+      margin-top: 2rem;
+      background: #fff;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    #eventLog { list-style: none; padding: 0; margin: 0; }
+    #eventLog li {
+      border-bottom: 1px solid #eee;
+      padding: 4px 0;
+      font-size: 0.95rem;
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -20,8 +92,8 @@
       </div>
 
       <div class="led-row">
-        <div class="led-label">RGB LED</div>
-        <div id="rgbLed" class="rgb-led off" aria-hidden></div>
+        <div class="led-label"><strong>RGB LED</strong></div>
+        <div id="rgbLed" class="rgb-led off"></div>
       </div>
 
       <div class="controls">
@@ -39,6 +111,66 @@
     </section>
   </main>
 
-  <script src="js/machine.js"></script>
+  <script>
+    // Inline JS (no backend)
+    (function () {
+      const rfidEl = document.getElementById("rfidStatus");
+      const machineEl = document.getElementById("machineState");
+      const rgbLedEl = document.getElementById("rgbLed");
+      const cycleTimerEl = document.getElementById("cycleTimer");
+      const negTimerEl = document.getElementById("negTimer");
+      const expectedEl = document.getElementById("expected");
+      const logUl = document.getElementById("eventLog");
+
+      function setLed(color) {
+        rgbLedEl.className = "rgb-led " + color;
+      }
+
+      let state = "Idle";
+      let remaining = 1800; // 30 min
+      let neg = 0;
+      let tick;
+
+      function updateDisplay() {
+        machineEl.textContent = state;
+        rfidEl.textContent = state === "Idle" ? "Not scanned" : "TAG1234";
+        expectedEl.textContent = (remaining / 60).toFixed(0);
+        const m = Math.floor(Math.abs(remaining) / 60);
+        const s = String(Math.abs(remaining) % 60).padStart(2, "0");
+        cycleTimerEl.textContent = `${m}:${s}`;
+        negTimerEl.textContent = neg;
+
+        if (state === "Idle") setLed("off");
+        else if (state === "Running") setLed("green");
+        else if (state === "Aborted") setLed("red");
+        else if (state === "Complete") setLed("yellow");
+
+        logUl.innerHTML = `<li>${new Date().toLocaleTimeString()} — ${state}</li>` + logUl.innerHTML;
+      }
+
+      setInterval(() => {
+        const order = ["Idle", "Running", "Aborted", "Complete"];
+        state = order[(order.indexOf(state) + 1) % order.length];
+        remaining = 1800;
+        neg = 0;
+        clearInterval(tick);
+        if (state === "Running") {
+          tick = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) clearInterval(tick);
+            updateDisplay();
+          }, 1000);
+        } else if (state === "Complete") {
+          tick = setInterval(() => {
+            neg++;
+            updateDisplay();
+          }, 1000);
+        }
+        updateDisplay();
+      }, 8000);
+
+      updateDisplay();
+    })();
+  </script>
 </body>
 </html>
