@@ -5,23 +5,102 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Residential Laundry System — Building</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#f6f8fb; margin:0; }
-    header { background:#2a6fb5; color:white; padding:16px; font-size:1.4em; }
-    .container { padding:20px; }
-    .floor-btn { display:block; background:#e5ecf7; padding:14px; margin:10px 0; border-radius:6px; text-decoration:none; color:#222; font-weight:bold; text-align:center; }
-    .floor-btn.running { background:#c4f0c2; }
-    .floor-btn.aborted { background:#f5b7b1; }
-    .floor-btn.complete { background:#b3d8ff; }
-    .floor-btn.idle { background:#e5ecf7; }
+    :root {
+      --accent: #2a6fb5;
+      --accent-light: #4a8de0;
+      --bg: #eef3fa;
+      --card-bg: rgba(255,255,255,0.85);
+      --text: #1a1a1a;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      background-image: linear-gradient(180deg, #f2f6fc 0%, #dbe7f8 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--accent);
+      color: #fff;
+      text-align: center;
+      padding: 1.2rem 0;
+      font-size: 1.5rem;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      padding: 2rem;
+      width: 340px;
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+    }
+
+    .status {
+      font-size: 1.1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .floor-btn {
+      display: inline-block;
+      padding: 14px 18px;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.1s;
+    }
+
+    .floor-btn:hover {
+      transform: scale(1.03);
+    }
+
+    .running { background: #30b82e; }
+    .aborted { background: #e24b4b; }
+    .complete { background: #408ef5; }
+    .idle { background: #7c8ca1; }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: #666;
+    }
   </style>
 </head>
 <body>
-  <header>Residential Laundry System — Building</header>
+  <header>🏢 Residential Laundry System</header>
 
-  <main class="container">
-    <a id="washerBtn" class="floor-btn idle" href="washer.html">Floor 0 — Washer (1) — Idle</a>
-    <p id="statusText">Waiting for Pico data...</p>
+  <main>
+    <div class="card">
+      <div class="status" id="statusText">Checking washer status...</div>
+      <a id="washerBtn" class="floor-btn idle" href="washer.html">
+        Floor 0 — Washer (1)
+      </a>
+    </div>
   </main>
+
+  <footer>© 2025 RLS System | Status updates every 3s</footer>
 
   <script>
     const API_URL = "https://rls-uvzg.onrender.com/api/state";
@@ -32,24 +111,19 @@
 
       try {
         const res = await fetch(API_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error("Bad response");
         const data = await res.json();
-
         const state = data.state || "Idle";
-        washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
-        washerBtn.className = `floor-btn ${state.toLowerCase()}`;
 
+        washerBtn.className = `floor-btn ${state.toLowerCase()}`;
+        washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
         statusText.textContent =
-          state === "Running"
-            ? `Washer active (${data.time})`
-            : state === "Aborted"
-            ? "Washer aborted due to inactivity"
-            : state === "Complete"
-            ? "Washer finished cycle"
-            : "Waiting for Pico data...";
-      } catch (err) {
+          state === "Running"  ? `Running (${data.time})` :
+          state === "Aborted"  ? "Cycle aborted — waiting for restart" :
+          state === "Complete" ? "Cycle complete! Ready for next load" :
+          "Idle — waiting for RFID scan";
+      } catch {
         washerBtn.className = "floor-btn idle";
-        washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
+        washerBtn.textContent = "Washer Offline";
         statusText.textContent = "Server not reachable.";
       }
     }
