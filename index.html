@@ -59,14 +59,14 @@
   </main>
 
   <script>
-    const SERVER = "https://rls-uvzg.onrender.com/api/state";
+    const INDEX_SERVER = "https://rls-uvzg.onrender.com/api/state";
 
-    async function update() {
+    async function updateIndex() {
       const washerBtn = document.getElementById("washerBtn");
       const statusText = document.getElementById("statusText");
 
       try {
-        const res = await fetch(SERVER, { cache: "no-store" });
+        const res = await fetch(INDEX_SERVER, { cache: "no-store" });
         if (!res.ok) throw new Error("Bad response");
         const data = await res.json();
 
@@ -92,8 +92,8 @@
       }
     }
 
-    setInterval(update, 2000);
-    update();
+    setInterval(updateIndex, 2000);
+    updateIndex();
   </script>
 </body>
 </html>
