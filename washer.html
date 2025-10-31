@@ -45,99 +45,90 @@ let lastState = "";
 let lastRFID = "";
 let countdownSeconds = 0;
 let countdownActive = false;
-let initializedRun = false;  // prevents re-initializing every poll
+let lastServerSeconds = null;
 
+// --- Helper ---
 function parseMMSS(t) {
   if (!t || typeof t !== "string" || !t.includes(":")) return null;
-  const [m, s] = t.split(":").map(v => parseInt(v, 10));
-  if (isNaN(m) || isNaN(s)) return null;
-  return m * 60 + s;
+  const [m, s] = t.split(":").map(Number);
+  return isNaN(m) || isNaN(s) ? null : m * 60 + s;
 }
 
+// --- Fetch loop ---
 async function fetchState() {
   try {
     const res = await fetch(API_URL, { cache: "no-store" });
     const data = await res.json();
 
     const state = data.state || "Idle";
-    const rfid  = data.rfid  || "—";
-
-    // Update static UI bits
-    document.getElementById("rfidText").textContent   = rfid;
-    document.getElementById("stateText").textContent  = state;
-    document.getElementById("expectedText").textContent = data.expected || 0;
-
-    // LED color
-    const led = document.getElementById("led");
-    led.style.background =
-      state === "Running"  ? "green"  :
-      state === "Complete" ? "blue"   :
-      state === "Aborted"  ? "red"    :
-      state === "Booted"   ? "yellow" : "gray";
-
-    // Handle countdown sync logic
+    const rfid = data.rfid || "—";
     const serverSeconds = parseMMSS(data.time);
 
+    document.getElementById("rfidText").textContent = rfid;
+    document.getElementById("stateText").textContent = state;
+    document.getElementById("expectedText").textContent = data.expected || 0;
+
+    const led = document.getElementById("led");
+    led.style.background =
+      state === "Running" ? "green" :
+      state === "Complete" ? "blue" :
+      state === "Aborted" ? "red" :
+      state === "Booted" ? "yellow" : "gray";
+
+    // only initialize timer when RUNNING starts (fresh cycle)
     if (state === "Running") {
-      // First time we see "Running" (or after not running): initialize from server
-      if (!initializedRun || lastState !== "Running") {
-        if (serverSeconds !== null) countdownSeconds = serverSeconds;
-        initializedRun = true;
-      } else {
-        // Only snap down if server is *ahead* of us by more than ~2s
-        if (serverSeconds !== null && serverSeconds < countdownSeconds - 2) {
-          countdownSeconds = serverSeconds;
-        }
-        // Otherwise keep our smooth local countdown; DO NOT reset upward.
+      if (lastState !== "Running") {
+        // just transitioned to running → start from server time
+        countdownSeconds = serverSeconds ?? countdownSeconds;
+        countdownActive = true;
+        addLog(`Cycle started (${data.time})`);
+      } else if (serverSeconds !== null && serverSeconds < countdownSeconds - 3) {
+        // only snap down if server is *ahead* (e.g., missed time)
+        countdownSeconds = serverSeconds;
       }
-      countdownActive = true;
     } else {
-      // Not running: stop local countdown; clamp to 0 on done/abort
       countdownActive = false;
-      initializedRun = false;
       if (state === "Complete" || state === "Aborted") countdownSeconds = 0;
-      else if (serverSeconds !== null) countdownSeconds = serverSeconds; // e.g., idle
     }
 
-    // Log only on meaningful changes
+    // only log when RFID or state change
     if (state !== lastState || rfid !== lastRFID) {
-      addLog(`State changed to ${state}${rfid ? `, RFID ${rfid}` : ""}`);
+      addLog(`State → ${state}, RFID: ${rfid}`);
       lastState = state;
       lastRFID = rfid;
     }
 
-  } catch (err) {
-    console.error("Fetch error:", err);
+  } catch (e) {
+    console.error("fetch failed:", e);
   }
 }
 
-// Local 1 Hz countdown; never let it go negative
+// --- Local ticking ---
 function tickTimer() {
   if (countdownActive && countdownSeconds > 0) countdownSeconds--;
-  if (countdownSeconds < 0) countdownSeconds = 0;
-
   const m = String(Math.floor(countdownSeconds / 60)).padStart(2, "0");
   const s = String(countdownSeconds % 60).padStart(2, "0");
   document.getElementById("timerText").textContent = `${m}:${s}`;
 }
 
-// Simple event log
+// --- Logging ---
 function addLog(msg) {
   const logDiv = document.getElementById("log");
-  const time = new Date().toLocaleTimeString();
-  const entry = document.createElement("div");
-  entry.className = "logentry";
-  entry.textContent = `${msg} — ${time}`;
-  logDiv.prepend(entry);
+  const t = new Date().toLocaleTimeString();
+  const e = document.createElement("div");
+  e.className = "logentry";
+  e.textContent = `${msg} — ${t}`;
+  logDiv.prepend(e);
 }
 
-// Poll server + run local tick
+// --- Start loops ---
 setInterval(fetchState, 3000);
 setInterval(tickTimer, 1000);
 fetchState();
 </script>
 </body>
 </html>
+
 
 
 
