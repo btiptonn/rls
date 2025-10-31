@@ -6,39 +6,51 @@
   <title>Washer — Machine 1</title>
 
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f7f9fc; color: #222; }
-    .site-header { background: #2b6cb0; color: white; padding: 1rem; display: flex; justify-content: space-between; }
-    .back { color: white; text-decoration: none; background: rgba(255,255,255,0.2); padding: 0.4rem 0.8rem; border-radius: 6px; }
-    .container { padding: 1.5rem 2rem; }
-    .status-box {
-      background: #fff;
-      border-radius: 8px;
+    body { font-family: system-ui, sans-serif; background: #f7f9fc; color: #222; margin: 0; }
+    .site-header { background: #2b6cb0; color: white; padding: 1rem; text-align: center; position: relative; }
+    .back { position: absolute; left: 1rem; top: 1rem; color: white; text-decoration: none; font-weight: bold; }
+    .container { padding: 1rem 2rem; }
+    .machine-status {
+      background: white; padding: 1rem 1.5rem; border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 1rem 1.5rem;
-      margin-bottom: 1.5rem;
     }
-    .rgb-led { width: 40px; height: 40px; border-radius: 50%; background: #999; display:inline-block; vertical-align:middle; }
-    .rgb-led.green  { background:#27ae60; }
-    .rgb-led.red    { background:#e74c3c; }
-    .rgb-led.yellow { background:#f1c40f; }
-    .log { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:1rem 1.5rem; }
-    #eventLog { list-style:none; padding:0; margin:0; }
-    #eventLog li { border-bottom:1px solid #eee; padding:4px 0; font-size:0.9rem; }
-    .disconnected { color:#999; font-style:italic; }
+    .status-row { display: flex; justify-content: space-between; margin-bottom: 1rem; }
+    .led-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .rgb-led {
+      width: 40px; height: 40px; border-radius: 50%; background: #ccc;
+      border: 2px solid #333;
+    }
+    .rgb-led.off { background: #aaa; }
+    .rgb-led.green { background: #27ae60; }
+    .rgb-led.red { background: #e74c3c; }
+    .rgb-led.yellow { background: #f1c40f; }
+    .log { margin-top: 2rem; }
+    #eventLog { list-style: none; padding: 0; }
+    #eventLog li { background: #fff; border: 1px solid #ddd; margin-bottom: 4px; padding: 6px 10px; border-radius: 6px; font-size: 0.95rem; }
   </style>
 </head>
 <body>
   <header class="site-header">
-    <h1>Washer — Machine 1</h1>
     <a class="back" href="index.html">← Back</a>
+    <h1>Washer — Machine 1</h1>
   </header>
 
   <main class="container">
-    <section class="status-box">
-      <p><strong>RFID:</strong> <span id="rfid" class="disconnected">Waiting for connection…</span></p>
-      <p><strong>State:</strong> <span id="state" class="disconnected">Idle</span></p>
-      <p><strong>Time:</strong> <span id="time" class="disconnected">00:00</span></p>
-      <div><strong>LED:</strong> <span id="led" class="rgb-led"></span></div>
+    <section class="machine-status">
+      <div class="status-row">
+        <div><strong>RFID:</strong> <span id="rfidStatus">Not scanned</span></div>
+        <div><strong>Machine:</strong> <span id="machineState">Idle</span></div>
+      </div>
+
+      <div class="led-row">
+        <div class="led-label">RGB LED</div>
+        <div id="rgbLed" class="rgb-led off" aria-hidden></div>
+      </div>
+
+      <div class="timers">
+        <div>Cycle timer: <span id="cycleTimer">00:00:00</span></div>
+        <div>Expected length: <span id="expected">0</span> min</div>
+      </div>
     </section>
 
     <section class="log">
@@ -48,59 +60,40 @@
   </main>
 
   <script>
-    // 🔧 Set to your PC’s local IP (the same one the Pico uses)
-    const SERVER = "http://172.20.10.9:5501/api/state";
+    const SERVER = "https://rls-uvzg.onrender.com/api/state";
+    let lastState = "";
 
-    let lastState = null;
+    function formatTime(seconds) {
+      const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
+      const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+      const s = String(seconds % 60).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
 
     async function update() {
       try {
         const res = await fetch(SERVER, { cache: "no-store" });
-        if (!res.ok) throw new Error("Bad response");
         const data = await res.json();
 
-        // If the Pico hasn’t sent any real data yet, stop here.
-        if (!data || data.rfid === "None") {
-          showDisconnected("Waiting for Pico data…");
-          return;
-        }
+        document.getElementById("rfidStatus").textContent = data.rfid;
+        document.getElementById("machineState").textContent = data.state;
+        document.getElementById("expected").textContent = Math.floor((parseInt(data.time) || 0) / 60);
 
-        // Apply data
-        document.getElementById("rfid").textContent  = data.rfid;
-        document.getElementById("state").textContent = data.state;
-        document.getElementById("time").textContent  = data.time;
-        document.getElementById("rfid").classList.remove("disconnected");
-        document.getElementById("state").classList.remove("disconnected");
-        document.getElementById("time").classList.remove("disconnected");
-
-        const led = document.getElementById("led");
-        led.className = "rgb-led";
-        if (data.state === "Running")  led.classList.add("green");
+        const led = document.getElementById("rgbLed");
+        led.className = "rgb-led off";
+        if (data.state === "Running") led.classList.add("green");
         else if (data.state === "Aborted") led.classList.add("red");
         else if (data.state === "Complete") led.classList.add("yellow");
 
-        // Log changes only when state changes
-        if (data.state !== lastState) {
+        if (lastState !== data.state) {
           const li = document.createElement("li");
-          li.textContent = new Date().toLocaleTimeString() + " — State changed to " + data.state;
+          li.textContent = `State changed to "${data.state}" — ${new Date().toLocaleTimeString()}`;
           document.getElementById("eventLog").prepend(li);
           lastState = data.state;
         }
-
       } catch (err) {
-        showDisconnected("Server offline or unreachable");
+        console.error("Error fetching state:", err);
       }
-    }
-
-    function showDisconnected(msg) {
-      document.getElementById("rfid").textContent  = msg;
-      document.getElementById("state").textContent = "Idle";
-      document.getElementById("time").textContent  = "00:00";
-      document.getElementById("rfid").classList.add("disconnected");
-      document.getElementById("state").classList.add("disconnected");
-      document.getElementById("time").classList.add("disconnected");
-      const led = document.getElementById("led");
-      led.className = "rgb-led";
     }
 
     setInterval(update, 2000);
