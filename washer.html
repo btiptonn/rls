@@ -34,43 +34,67 @@
   </div>
 
   <script>
-    const API_URL = "https://rls-uvzg.onrender.com/api/state";
+const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-    async function fetchState() {
-      try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
+let lastData = null;
+let countdownSeconds = 0;
+let countdownActive = false;
 
-        // Update elements
-        document.getElementById("rfidText").textContent = data.rfid || "—";
-        document.getElementById("stateText").textContent = data.state || "Idle";
-        document.getElementById("timerText").textContent = data.time || "00:00";
-        document.getElementById("expectedText").textContent = data.expected || 0;
+async function fetchState() {
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
 
-        const led = document.getElementById("led");
-        if (data.state === "Running") led.style.background = "green";
-        else if (data.state === "Complete") led.style.background = "blue";
-        else if (data.state === "Aborted") led.style.background = "red";
-        else if (data.state === "Booted") led.style.background = "yellow";
-        else led.style.background = "gray";
+    // Update values
+    document.getElementById("rfidText").textContent = data.rfid || "—";
+    document.getElementById("stateText").textContent = data.state || "Idle";
+    document.getElementById("expectedText").textContent = data.expected || 0;
 
-        addLog(`State: ${data.state}, Timer: ${data.time}`);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      }
+    // Parse timer text
+    if (data.time) {
+      const [m, s] = data.time.split(":").map(x => parseInt(x));
+      countdownSeconds = (m * 60) + s;
+      countdownActive = data.state === "Running";
     }
 
-    function addLog(msg) {
-      const logDiv = document.getElementById("log");
-      const time = new Date().toLocaleTimeString();
-      const entry = document.createElement("div");
-      entry.className = "logentry";
-      entry.textContent = `${msg} — ${time}`;
-      logDiv.prepend(entry);
-    }
+    const led = document.getElementById("led");
+    if (data.state === "Running") led.style.background = "green";
+    else if (data.state === "Complete") led.style.background = "blue";
+    else if (data.state === "Aborted") led.style.background = "red";
+    else if (data.state === "Booted") led.style.background = "yellow";
+    else led.style.background = "gray";
 
-    setInterval(fetchState, 3000);
-    fetchState();
-  </script>
+    addLog(`State: ${data.state}, Timer: ${data.time}`);
+    lastData = data;
+  } catch (err) {
+    console.error("Fetch error:", err);
+  }
+}
+
+// Local timer countdown (client side)
+function tickTimer() {
+  if (countdownActive && countdownSeconds > 0) {
+    countdownSeconds--;
+    const m = String(Math.floor(countdownSeconds / 60)).padStart(2, "0");
+    const s = String(countdownSeconds % 60).padStart(2, "0");
+    document.getElementById("timerText").textContent = `${m}:${s}`;
+  }
+}
+
+// Event log helper
+function addLog(msg) {
+  const logDiv = document.getElementById("log");
+  const time = new Date().toLocaleTimeString();
+  const entry = document.createElement("div");
+  entry.className = "logentry";
+  entry.textContent = `${msg} — ${time}`;
+  logDiv.prepend(entry);
+}
+
+setInterval(fetchState, 3000);
+setInterval(tickTimer, 1000);
+fetchState();
+</script>
 </body>
 </html>
+
