@@ -54,6 +54,8 @@
       <ul>
         <li>Updates only when Pico sends new data.</li>
         <li>If you see "Waiting for connection", your Pico hasn’t posted yet.</li>
+        <li>Updates only when the Pico sends new data.</li>
+        <li>If you see “Waiting for connection,” your Pico hasn’t posted yet.</li>
       </ul>
     </section>
   </main>
@@ -61,6 +63,7 @@
   <script>
     // Change this to your PC IP + port
     const SERVER = "http://172.20.10.9:8080/api/state";
+    const SERVER = "https://rls-uvzg.onrender.com/api/state";
 
     async function update() {
       const washerBtn = document.getElementById("washerBtn");
