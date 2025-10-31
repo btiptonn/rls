@@ -52,6 +52,8 @@
     <section class="instructions">
       <h2>Live system</h2>
       <ul>
+        <li>Updates only when Pico sends new data.</li>
+        <li>If you see "Waiting for connection", your Pico hasn’t posted yet.</li>
         <li>Updates only when the Pico sends new data.</li>
         <li>If you see “Waiting for connection,” your Pico hasn’t posted yet.</li>
       </ul>
@@ -59,41 +61,42 @@
   </main>
 
   <script>
-    const INDEX_SERVER = "https://rls-uvzg.onrender.com/api/state";
+  // Use ONLY your live Render backend:
+  const INDEX_SERVER = "https://rls-uvzg.onrender.com/api/state";
 
-    async function updateIndex() {
-      const washerBtn = document.getElementById("washerBtn");
-      const statusText = document.getElementById("statusText");
+  async function updateIndex() {
+    const washerBtn = document.getElementById("washerBtn");
+    const statusText = document.getElementById("statusText");
 
-      try {
-        const res = await fetch(INDEX_SERVER, { cache: "no-store" });
-        if (!res.ok) throw new Error("Bad response");
-        const data = await res.json();
+    try {
+      const res = await fetch(INDEX_SERVER, { cache: "no-store" });
+      if (!res.ok) throw new Error("Bad response");
+      const data = await res.json();
 
-        if (!data || data.rfid === "None") {
-          washerBtn.className = "floor-btn idle";
-          washerBtn.textContent = "Floor 0 — Washer (1) — Idle";
-          statusText.textContent = "Waiting for Pico data...";
-          return;
-        }
-
-        let stateClass = "idle";
-        if (data.state === "Running") stateClass = "running";
-        else if (data.state === "Aborted") stateClass = "aborted";
-        else if (data.state === "Complete") stateClass = "complete";
-
-        washerBtn.className = `floor-btn ${stateClass}`;
-        washerBtn.textContent = `Floor 0 — Washer (1) — ${data.state}`;
-        statusText.textContent = `Last update from Pico (${data.rfid})`;
-      } catch (err) {
+      if (!data || data.rfid === "None") {
         washerBtn.className = "floor-btn idle";
-        washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
-        statusText.textContent = "Server not reachable or Pico offline.";
+        washerBtn.textContent = "Floor 0 — Washer (1) — Idle";
+        statusText.textContent = "Waiting for Pico data...";
+        return;
       }
-    }
 
-    setInterval(updateIndex, 2000);
-    updateIndex();
-  </script>
+      let stateClass = "idle";
+      if (data.state === "Running") stateClass = "running";
+      else if (data.state === "Aborted") stateClass = "aborted";
+      else if (data.state === "Complete") stateClass = "complete";
+
+      washerBtn.className = `floor-btn ${stateClass}`;
+      washerBtn.textContent = `Floor 0 — Washer (1) — ${data.state}`;
+      statusText.textContent = `Last update from Pico (${data.rfid})`;
+    } catch (err) {
+      washerBtn.className = "floor-btn idle";
+      washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
+      statusText.textContent = "Server not reachable or Pico offline.";
+    }
+  }
+
+  setInterval(updateIndex, 2000);
+  updateIndex();
+</script>
 </body>
 </html>
