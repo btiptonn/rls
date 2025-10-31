@@ -6,63 +6,26 @@
   <title>RLS — Building</title>
 
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      margin: 0;
-      background: #f7f9fc;
-      color: #222;
-    }
-
-    .site-header {
-      background: #2b6cb0;
-      color: white;
-      padding: 1rem;
-      text-align: center;
-    }
-
-    .container {
-      padding: 1rem 2rem;
-    }
-
-    .building-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .building-svg {
-      max-width: 240px;
-    }
-
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f7f9fc; color: #222; }
+    .site-header { background: #2b6cb0; color: white; padding: 1rem; text-align: center; }
+    .container { padding: 1rem 2rem; }
+    .building-card { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    .building-svg { max-width: 240px; }
     .floor-btn {
-      display: inline-block;
-      background: #2b6cb0;
-      color: white;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      text-decoration: none;
-      margin-top: 1rem;
+      display: inline-block; background: #bbb; color: white;
+      padding: 0.6rem 1rem; border-radius: 8px; text-decoration: none;
       transition: background 0.3s;
     }
-
-    .floor-btn.ok { background: #2b6cb0; }
-    .floor-btn.busy { background: #e67e22; }
-    .floor-btn.warn { background: #e74c3c; }
-    .floor-btn.done { background: #27ae60; }
-
+    .floor-btn.idle { background: #7f8c8d; }
+    .floor-btn.running { background: #27ae60; }
+    .floor-btn.aborted { background: #e74c3c; }
+    .floor-btn.complete { background: #f1c40f; color: #222; }
     .instructions {
-      margin-top: 2rem;
-      background: #fff;
-      padding: 1rem 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-top: 2rem; background: #fff; padding: 1rem 1.5rem;
+      border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-
-    .instructions h2 {
-      margin-top: 0;
-      color: #2b6cb0;
-    }
+    .instructions h2 { margin-top: 0; color: #2b6cb0; }
+    .status-text { margin-top: 1rem; font-style: italic; color: #777; }
   </style>
 </head>
 <body>
@@ -80,44 +43,58 @@
       </svg>
 
       <div class="floors">
-        <a class="floor-btn" href="washer.html">Floor 0 — Washer (1)</a>
+        <a id="washerBtn" class="floor-btn idle" href="washer.html">Floor 0 — Washer (1)</a>
       </div>
+
+      <div id="statusText" class="status-text">Waiting for connection...</div>
     </section>
 
     <section class="instructions">
       <h2>Live system</h2>
       <ul>
-        <li>This UI updates from the Pico via the server (or simulation on GitHub Pages).</li>
-        <li>RFID, cycle start/stop, and vibration are controlled by the device.</li>
+        <li>Updates only when Pico sends new data.</li>
+        <li>If you see "Waiting for connection", your Pico hasn’t posted yet.</li>
       </ul>
     </section>
   </main>
 
   <script>
-    // Inline version of js/main.js for GitHub Pages (no backend)
-    (function () {
-      const floorBtn = document.querySelector(".floor-btn");
-      let fakeState = "Idle";
+    // Change this to your PC IP + port
+    const SERVER = "http://172.20.10.9:8080/api/state";
 
-      function applyStatus(state) {
-        if (!floorBtn) return;
-        floorBtn.classList.remove("ok", "busy", "warn", "done");
-        let cls = "ok";
-        if (state === "Running") cls = "busy";
-        else if (state === "Aborted") cls = "warn";
-        else if (state === "Complete") cls = "done";
-        floorBtn.classList.add(cls);
-        floorBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
+    async function update() {
+      const washerBtn = document.getElementById("washerBtn");
+      const statusText = document.getElementById("statusText");
+
+      try {
+        const res = await fetch(SERVER, { cache: "no-store" });
+        if (!res.ok) throw new Error("Bad response");
+        const data = await res.json();
+
+        if (!data || data.rfid === "None") {
+          washerBtn.className = "floor-btn idle";
+          washerBtn.textContent = "Floor 0 — Washer (1) — Idle";
+          statusText.textContent = "Waiting for Pico data...";
+          return;
+        }
+
+        let stateClass = "idle";
+        if (data.state === "Running") stateClass = "running";
+        else if (data.state === "Aborted") stateClass = "aborted";
+        else if (data.state === "Complete") stateClass = "complete";
+
+        washerBtn.className = `floor-btn ${stateClass}`;
+        washerBtn.textContent = `Floor 0 — Washer (1) — ${data.state}`;
+        statusText.textContent = `Last update from Pico (${data.rfid})`;
+      } catch (err) {
+        washerBtn.className = "floor-btn idle";
+        washerBtn.textContent = "Floor 0 — Washer (1) — Offline";
+        statusText.textContent = "Server not reachable or Pico offline.";
       }
+    }
 
-      setInterval(() => {
-        const order = ["Idle", "Running", "Aborted", "Complete"];
-        fakeState = order[(order.indexOf(fakeState) + 1) % order.length];
-        applyStatus(fakeState);
-      }, 4000);
-
-      applyStatus(fakeState);
-    })();
+    setInterval(update, 2000);
+    update();
   </script>
 </body>
 </html>
