@@ -11,21 +11,21 @@
     .led { width: 40px; height: 40px; border-radius: 50%; display: inline-block; margin-right: 10px; border: 2px solid #333; vertical-align: middle; }
     .eventlog { margin: 20px auto; width: 80%; background: #fff; padding: 16px; border-radius: 8px; }
     .logentry { border-bottom: 1px solid #ddd; padding: 4px 0; }
+    button { padding:8px 14px;border:none;border-radius:6px;background:#2a6fb5;color:white;cursor:pointer; }
   </style>
 </head>
 <body>
   <header>Washer — Machine 1</header>
+
   <div style="margin: 15px 20px;">
-  <button onclick="window.location.href='index.html'"
-    style="padding:8px 14px;border:none;border-radius:6px;background:#2a6fb5;color:white;cursor:pointer;">
-    ⬅ Back to Home
-  </button>
-</div>
+    <button onclick="window.location.href='index.html'">⬅ Back to Home</button>
+  </div>
+
   <div class="card">
     <div><strong>RFID:</strong> <span id="rfidText">—</span></div>
     <div style="margin-top:10px">
       <div id="led" class="led"></div>
-      <span><strong>Machine:</strong> <span id="stateText">Loading...</span></span>
+      <span><strong>Machine:</strong> <span id="stateText">Idle</span></span>
     </div>
     <p style="margin-top:10px">
       Cycle timer: <span id="timerText">00:00</span><br>
@@ -39,97 +39,96 @@
   </div>
 
   <script>
-const API_URL = "https://rls-uvzg.onrender.com/api/state";
+    const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-let lastState = "";
-let lastRFID = "";
-let countdownSeconds = 0;
-let countdownActive = false;
-let lastServerSeconds = null;
+    let lastState = "";
+    let lastRFID = "";
+    let countdownSeconds = 0;
+    let countdownActive = false;
+    let initializedRun = false;
 
-// --- Helper ---
-function parseMMSS(t) {
-  if (!t || typeof t !== "string" || !t.includes(":")) return null;
-  const [m, s] = t.split(":").map(Number);
-  return isNaN(m) || isNaN(s) ? null : m * 60 + s;
-}
+    function parseMMSS(t) {
+      if (!t || typeof t !== "string" || !t.includes(":")) return null;
+      const [m, s] = t.split(":").map(Number);
+      return isNaN(m) || isNaN(s) ? null : m * 60 + s;
+    }
 
-// --- Fetch loop ---
-async function fetchState() {
-  try {
-    const res = await fetch(API_URL, { cache: "no-store" });
-    const data = await res.json();
+    async function fetchState() {
+      try {
+        const res = await fetch(API_URL, { cache: "no-store" });
+        const data = await res.json();
 
-    const state = data.state || "Idle";
-    const rfid = data.rfid || "—";
-    const serverSeconds = parseMMSS(data.time);
+        const state = data.state || "Idle";
+        const rfid = data.rfid || "—";
+        const serverSeconds = parseMMSS(data.time);
 
-    document.getElementById("rfidText").textContent = rfid;
-    document.getElementById("stateText").textContent = state;
-    document.getElementById("expectedText").textContent = data.expected || 0;
+        document.getElementById("rfidText").textContent = rfid;
+        document.getElementById("stateText").textContent = state;
+        document.getElementById("expectedText").textContent = data.expected || 0;
 
-    const led = document.getElementById("led");
-    led.style.background =
-      state === "Running" ? "green" :
-      state === "Complete" ? "blue" :
-      state === "Aborted" ? "red" :
-      state === "Booted" ? "yellow" : "gray";
+        const led = document.getElementById("led");
+        led.style.background =
+          state === "Running"  ? "green"  :
+          state === "Complete" ? "blue"   :
+          state === "Aborted"  ? "red"    :
+          state === "Booted"   ? "yellow" : "gray";
 
-    // only initialize timer when RUNNING starts (fresh cycle)
-    if (state === "Running") {
-      if (lastState !== "Running") {
-        // just transitioned to running → start from server time
-        countdownSeconds = serverSeconds ?? countdownSeconds;
-        countdownActive = true;
-        addLog(`Cycle started (${data.time})`);
-      } else if (serverSeconds !== null && serverSeconds < countdownSeconds - 3) {
-        // only snap down if server is *ahead* (e.g., missed time)
-        countdownSeconds = serverSeconds;
+        // sync countdown once when Running starts
+        if (state === "Running") {
+          if (!initializedRun || lastState !== "Running") {
+            if (serverSeconds !== null) countdownSeconds = serverSeconds;
+            countdownActive = true;
+            initializedRun = true;
+            addLog(`Cycle started (${data.time})`);
+          } else if (serverSeconds !== null && serverSeconds < countdownSeconds - 3) {
+            countdownSeconds = serverSeconds;
+          }
+        } else {
+          countdownActive = false;
+          initializedRun = false;
+          if (state === "Aborted" || state === "Complete") countdownSeconds = 0;
+        }
+
+        // stop immediately on abort
+        if (state === "Aborted") {
+          countdownActive = false;
+          countdownSeconds = 0;
+          document.getElementById("timerText").textContent = "00:00";
+          addLog("Cycle aborted due to inactivity.");
+        }
+
+        if (state !== lastState || rfid !== lastRFID) {
+          addLog(`State → ${state}, RFID: ${rfid}`);
+          lastState = state;
+          lastRFID = rfid;
+        }
+
+      } catch (err) {
+        console.error("Fetch error:", err);
       }
-    } else {
-      countdownActive = false;
-      if (state === "Complete" || state === "Aborted") countdownSeconds = 0;
     }
 
-    // only log when RFID or state change
-    if (state !== lastState || rfid !== lastRFID) {
-      addLog(`State → ${state}, RFID: ${rfid}`);
-      lastState = state;
-      lastRFID = rfid;
+    function tickTimer() {
+      if (countdownActive && countdownSeconds > 0) countdownSeconds--;
+      if (countdownSeconds < 0) countdownSeconds = 0;
+
+      const m = String(Math.floor(countdownSeconds / 60)).padStart(2, "0");
+      const s = String(countdownSeconds % 60).padStart(2, "0");
+      document.getElementById("timerText").textContent = `${m}:${s}`;
     }
 
-  } catch (e) {
-    console.error("fetch failed:", e);
-  }
-}
+    function addLog(msg) {
+      const logDiv = document.getElementById("log");
+      const t = new Date().toLocaleTimeString();
+      const e = document.createElement("div");
+      e.className = "logentry";
+      e.textContent = `${msg} — ${t}`;
+      logDiv.prepend(e);
+    }
 
-// --- Local ticking ---
-function tickTimer() {
-  if (countdownActive && countdownSeconds > 0) countdownSeconds--;
-  const m = String(Math.floor(countdownSeconds / 60)).padStart(2, "0");
-  const s = String(countdownSeconds % 60).padStart(2, "0");
-  document.getElementById("timerText").textContent = `${m}:${s}`;
-}
-
-// --- Logging ---
-function addLog(msg) {
-  const logDiv = document.getElementById("log");
-  const t = new Date().toLocaleTimeString();
-  const e = document.createElement("div");
-  e.className = "logentry";
-  e.textContent = `${msg} — ${t}`;
-  logDiv.prepend(e);
-}
-
-// --- Start loops ---
-setInterval(fetchState, 3000);
-setInterval(tickTimer, 1000);
-fetchState();
-</script>
+    setInterval(fetchState, 3000);
+    setInterval(tickTimer, 1000);
+    fetchState();
+  </script>
 </body>
 </html>
-
-
-
-
-
