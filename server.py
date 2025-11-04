@@ -6,7 +6,7 @@ import requests   # for SMS alerts via Textbelt
 def send_sms_textbelt(msg):
     try:
         res = requests.post('https://textbelt.com/text', {
-            'phone': '+1XXXXXXXXXX',  # 👈 replace with your number, e.g. +12565551234
+            'phone': '+12569246101',  # 👈 replace with your number, e.g. +12565551234
             'message': msg,
             'key': 'textbelt'         # free key (1 text/day) — buy key for unlimited
         })
