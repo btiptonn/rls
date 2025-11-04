@@ -6,7 +6,7 @@ import os
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH")
 TWILIO_FROM = os.getenv("TWILIO_FROM")  # your Twilio phone number
-ALERT_TO = os.getenv("ALERT_TO")        # your personal phone number
+ALERT_TO = os.getenv("2569246101")        # your personal phone number
 
 client = Client(TWILIO_SID, TWILIO_AUTH)
 
