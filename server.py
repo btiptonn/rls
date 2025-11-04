@@ -1,14 +1,6 @@
-from twilio.rest import Client
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 
-import os
-TWILIO_SID = os.getenv("TWILIO_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH")
-TWILIO_FROM = os.getenv("TWILIO_FROM")  # your Twilio phone number
-ALERT_TO = os.getenv("ALERT_TO")        # your personal phone number
-
-client = Client(TWILIO_SID, TWILIO_AUTH)
 
 # Store latest washer data
 last_data = {
@@ -33,20 +25,6 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        elif event == "abort":
-    last_data["state"] = "Aborted"
-    last_data["time"] = "00:00"
-
-    # send SMS alert
-    try:
-        client.messages.create(
-            body="⚠️ Laundry cycle aborted: no vibration detected for 2 minutes.",
-            from_=TWILIO_FROM,
-            to=ALERT_TO
-        )
-        print("📱 SMS alert sent successfully")
-    except Exception as e:
-        print("❌ Failed to send SMS:", e)
         global last_data
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length)
