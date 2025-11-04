@@ -118,9 +118,9 @@
         washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
         statusText.textContent =
           state === "Running"  ? `Running (${data.time})` :
-          state === "Aborted"  ? "Cycle aborted — waiting for restart" :
-          state === "Complete" ? "Cycle complete! Ready for next load" :
-          "Idle — waiting for RFID scan";
+          state === "Aborted"  ? "Cycle aborted or Completed Early - Awaiting Laundry Removal Verification" :
+          state === "Complete" ? "Cycle complete - Awaiting laundry removal verification" :
+          "Machine Open";
       } catch {
         washerBtn.className = "floor-btn idle";
         washerBtn.textContent = "Washer Offline";
