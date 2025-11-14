@@ -1,44 +1,59 @@
+# ============================================================
+#  FULL RENDER BACKEND FOR RESIDENTIAL LAUNDRY SYSTEM
+#  - Handles Pico events (boot/start/tick/complete/abort)
+#  - Stores live machine state
+#  - Sends SMS alerts (Textbelt)
+#  - Logs full payload for debugging
+# ============================================================
+
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-try:
-    import requests
-except:
-    import urllib.request
-    import json as _json
+import urllib.request
+import urllib.parse
 
-    class _SimpleRequests:
-        @staticmethod
-        def post(url, data=None, json=None):
-            if json is not None:
-                data = _json.dumps(json).encode()
-                headers = {"Content-Type": "application/json"}
-            else:
-                headers = {"Content-Type": "application/x-www-form-urlencoded"}
+# ============================================================
+#  SIMPLE REQUESTS-LIKE SENDER (NO DEPENDENCIES NEEDED)
+# ============================================================
+def http_post(url, fields):
+    data = urllib.parse.urlencode(fields).encode('utf-8')
+    req = urllib.request.Request(url, data=data)
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req) as resp:
+        return resp.read().decode()
 
-            req = urllib.request.Request(url, data=data, headers=headers)
-            return urllib.request.urlopen(req)
-
-    requests = _SimpleRequests()
-# ======== Textbelt SMS helper ========
-def send_sms_textbelt(msg):
+# ============================================================
+#  TEXTBELT SMS SENDER
+# ============================================================
+def send_sms_textbelt(message):
     try:
-        res = requests.post('https://textbelt.com/text', {
-            'phone': '+12569246101',  # 👈 replace with your number, e.g. +12565551234
-            'message': msg,
-            'key': 'textbelt'         # free key (1 text/day) — buy key for unlimited
+        response = http_post("https://textbelt.com/text", {
+            'phone': '+1YOURPHONENUMBER',   # <--- PUT YOUR NUMBER HERE
+            'message': message,
+            'key': 'textbelt'               # free key = 1 SMS/day
         })
-        print("📱 SMS sent:", res.json())
+        print("📱 FULL SMS RESPONSE:", response)
     except Exception as e:
-        print("❌ SMS error:", e)
+        print("❌ SMS ERROR:", e)
 
-# ======== Global State ========
-last_data = {"rfid": "None", "state": "Idle", "time": "00:00"}
+# ============================================================
+#  GLOBAL STATE
+# ============================================================
+last_data = {
+    "rfid": "None",
+    "state": "Idle",
+    "time": "00:00",
+    "expected": 0
+}
 
+# ============================================================
+#  REQUEST HANDLER
+# ============================================================
 class Handler(BaseHTTPRequestHandler):
+
     def _set_headers(self, code=200):
         self.send_response(code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
     def do_OPTIONS(self):
@@ -48,25 +63,42 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    # ======================================================
+    #  HANDLE POST FROM PICO
+    # ======================================================
     def do_POST(self):
         global last_data
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length)
+
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
 
         try:
             data = json.loads(body.decode())
-            print("📩 Received:", data)
+            print("📩 FULL PAYLOAD:", data)  # <-- IMPORTANT FOR DEBUGGING
 
             event = data.get("event", "").lower()
+            edata = data.get("data", {})
 
+            # ------------------------------------------------------
+            #  BOOT EVENT
+            # ------------------------------------------------------
             if event == "boot":
-                last_data = {"rfid": "None", "state": "Booted", "time": "00:00"}
+                last_data = {
+                    "rfid": "None",
+                    "state": "Booted",
+                    "time": "00:00",
+                    "expected": 0
+                }
 
+            # ------------------------------------------------------
+            #  START EVENT
+            # ------------------------------------------------------
             elif event == "start":
-                uid = data["data"].get("uid", "unknown")
-                secs = int(data["data"].get("seconds", 0))
+                uid = edata.get("uid", "unknown")
+                secs = int(edata.get("seconds", 0))
                 mm = str(secs // 60).zfill(2)
                 ss = str(secs % 60).zfill(2)
+
                 last_data = {
                     "rfid": uid,
                     "state": "Running",
@@ -74,35 +106,49 @@ class Handler(BaseHTTPRequestHandler):
                     "expected": secs // 60
                 }
 
+            # ------------------------------------------------------
+            #  TICK EVENT
+            # ------------------------------------------------------
             elif event == "tick":
-                rem = int(data["data"].get("remaining_s", 0))
+                rem = int(edata.get("remaining_s", 0))
                 mm = str(rem // 60).zfill(2)
                 ss = str(rem % 60).zfill(2)
                 last_data["time"] = f"{mm}:{ss}"
 
+            # ------------------------------------------------------
+            #  COMPLETE EVENT
+            # ------------------------------------------------------
             elif event == "complete":
                 last_data["state"] = "Complete"
                 last_data["time"] = "00:00"
+
                 send_sms_textbelt("✅ Laundry cycle complete! Ready for pickup.")
 
+            # ------------------------------------------------------
+            #  ABORT EVENT
+            # ------------------------------------------------------
             elif event == "abort":
                 last_data["state"] = "Aborted"
                 last_data["time"] = "00:00"
-                reason = data["data"].get("reason", "quiet")
-                print(f"🚫 Aborted due to: {reason}")
+
+                print("🚫 MACHINE ABORTED:", edata)
                 send_sms_textbelt("⚠️ Laundry cycle aborted — no vibration for 2 minutes.")
 
             else:
-                print("⚠️ Unknown event:", event)
+                print("⚠️ Unknown event key:", event)
 
+            # SEND OK RESPONSE
             self._set_headers(200)
             self.wfile.write(json.dumps({"ok": True}).encode())
 
         except Exception as e:
-            print("❌ Error handling POST:", e)
+            print("❌ ERROR IN POST HANDLER:", e)
             self._set_headers(400)
             self.wfile.write(json.dumps({"ok": False}).encode())
 
+    # ======================================================
+    #  FRONTEND GET REQUEST
+    # ======================================================
     def do_GET(self):
         if self.path == "/api/state":
             self._set_headers(200)
@@ -111,7 +157,9 @@ class Handler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(b"{}")
 
-
+# ============================================================
+#  SERVER START
+# ============================================================
 PORT = 10000
-print(f"✅ Server running on http://0.0.0.0:{PORT}")
+print(f"🚀 SERVER LIVE ON PORT {PORT}")
 HTTPServer(("", PORT), Handler).serve_forever()
