@@ -36,9 +36,11 @@
     main {
       flex: 1;
       display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
       padding: 2rem 1rem;
+      gap: 2rem;
     }
 
     .card {
@@ -78,7 +80,26 @@
     .running { background: #30b82e; }
     .aborted { background: #e24b4b; }
     .complete { background: #408ef5; }
+    .locked { background: #a56de2; }
     .idle { background: #7c8ca1; }
+
+    .guide {
+      background: var(--card-bg);
+      padding: 1.5rem;
+      border-radius: 12px;
+      width: 340px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    .guide h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+
+    .guide ul {
+      padding-left: 20px;
+    }
 
     footer {
       text-align: center;
@@ -86,6 +107,7 @@
       font-size: 0.85rem;
       color: #666;
     }
+
   </style>
 </head>
 <body>
@@ -98,6 +120,18 @@
         Floor 0 — Washer (1)
       </a>
     </div>
+
+    <section class="guide">
+      <h2>📘 User Guide</h2>
+      <ul>
+        <li>Scan your RFID tag on the machine to unlock the washer.</li>
+        <li>Select your desired cycle time (30/45/60 minutes).</li>
+        <li>The machine will monitor vibration automatically.</li>
+        <li>If the washer is <strong>locked</strong>, the previous user must rescan their card to clear it.</li>
+        <li>When finished, return to remove laundry and scan out.</li>
+        <li>You will receive SMS alerts when the cycle completes or aborts.</li>
+      </ul>
+    </section>
   </main>
 
   <footer>© 2025 RLS System | Status updates every 3s</footer>
@@ -116,10 +150,12 @@
 
         washerBtn.className = `floor-btn ${state.toLowerCase()}`;
         washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
+
         statusText.textContent =
           state === "Running"  ? `Running (${data.time})` :
-          state === "Aborted"  ? "Cycle aborted or Completed Early - Awaiting Laundry Removal Verification" :
-          state === "Complete" ? "Cycle complete - Awaiting laundry removal verification" :
+          state === "Aborted"  ? "Aborted — Pending User Scan-Out" :
+          state === "Complete" ? "Complete — Pending User Scan-Out" :
+          state === "Locked"   ? "Locked — Awaiting Scan-Out" :
           "Machine Open";
       } catch {
         washerBtn.className = "floor-btn idle";
