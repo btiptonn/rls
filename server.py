@@ -27,7 +27,7 @@ def http_post(url, fields):
 def send_sms_textbelt(message):
     try:
         response = http_post("https://textbelt.com/text", {
-            'phone': '+1YOURPHONENUMBER',   # <--- PUT YOUR NUMBER HERE
+            'phone': '+12569246101',   # <--- PUT YOUR NUMBER HERE
             'message': message,
             'key': 'textbelt'               # free key = 1 SMS/day
         })
