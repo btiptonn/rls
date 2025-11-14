@@ -1,7 +1,24 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import requests   # for SMS alerts via Textbelt
+try:
+    import requests
+except:
+    import urllib.request
+    import json as _json
 
+    class _SimpleRequests:
+        @staticmethod
+        def post(url, data=None, json=None):
+            if json is not None:
+                data = _json.dumps(json).encode()
+                headers = {"Content-Type": "application/json"}
+            else:
+                headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+            req = urllib.request.Request(url, data=data, headers=headers)
+            return urllib.request.urlopen(req)
+
+    requests = _SimpleRequests()
 # ======== Textbelt SMS helper ========
 def send_sms_textbelt(msg):
     try:
