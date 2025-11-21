@@ -1,158 +1,118 @@
-# ============================================================
-#  RESIDENTIAL LAUNDRY SYSTEM — RENDER BACKEND
-#  - Tracks machine + lock state
-#  - Sends SMS via Textbelt paid key
-#  - Serves /api/state to frontend
-# ============================================================
+import os
+from datetime import datetime
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+import requests
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import json
-import urllib.request
-import urllib.parse
+app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)
 
-# ====== CONFIG: UPDATE THESE ======
-PHONE_NUMBER = "+1YOURNUMBERHERE"        # e.g. "+12565551234"
-TEXTBELT_KEY = "textbelt_PAID_KEY_HERE"  # your paid key from Textbelt
-PORT = 10000
-# ==================================
-
-def http_post(url, fields):
-    data = urllib.parse.urlencode(fields).encode()
-    req = urllib.request.Request(url, data=data)
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urllib.request.urlopen(req) as resp:
-        return resp.read().decode()
-
-def send_sms_textbelt(message):
-    print("📱 SENDING SMS")
-    print("📨 PHONE =", PHONE_NUMBER)
-    print("📨 MESSAGE =", message)
-    try:
-        response = http_post("https://textbelt.com/text", {
-            "phone": PHONE_NUMBER,
-            "message": message,
-            "key": TEXTBELT_KEY
-        })
-        print("📡 RAW RESPONSE:", response)
-    except Exception as e:
-        print("❌ SMS ERROR:", e)
-
-# ====== GLOBAL STATE ======
-# rfid      = last card that started a cycle
-# state     = Idle | Running | Locked | Booted
-# lock_uid  = uid of user who must scan out (or None)
-# time      = mm:ss remaining or 00:00 when not running
-last_data = {
-    "rfid": "None",
+# ----------------------
+#  GLOBAL WASHER STATE
+# ----------------------
+washer_state = {
     "state": "Idle",
-    "time": "00:00",
+    "rfid": None,
     "expected": 0,
-    "lock_uid": None
+    "time": "00:00",
+    "lock_uid": None,
+    "last_update": None,
+    "log": []
 }
 
-def set_lock(uid):
-    global last_data
-    last_data["lock_uid"] = uid
-    last_data["state"] = "Locked"
-    last_data["time"] = "00:00"
+MAX_LOG_ENTRIES = 50
 
-def clear_lock():
-    global last_data
-    last_data["lock_uid"] = None
-    last_data["state"] = "Idle"
-    last_data["rfid"] = "None"
-    last_data["time"] = "00:00"
-    last_data["expected"] = 0
+# ----------------------
+#  TEXTBELT SMS CONFIG
+# ----------------------
 
-class Handler(BaseHTTPRequestHandler):
-    def _set_headers(self, code=200):
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+USER_PHONE = "+1XXXXXXXXXX"    # <-- PUT YOUR PHONE HERE
+TEXTBELT_KEY = "textbelt"      # free key (1 SMS/day)
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+def send_sms(message):
+    """
+    Sends a text message using Textbelt API.
+    """
+    try:
+        print("Sending SMS:", message)
+        resp = requests.post(
+            "https://textbelt.com/text",
+            {
+                "phone": USER_PHONE,
+                "message": message,
+                "key": TEXTBELT_KEY
+            }
+        )
+        print("Textbelt response:", resp.text)
+    except Exception as e:
+        print("SMS ERROR:", e)
 
-    def do_POST(self):
-        global last_data
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
+# ----------------------
+#  STATIC FILE ROUTES
+# ----------------------
 
-        try:
-            data = json.loads(body.decode())
-            print("📩 FULL PAYLOAD:", data)
+@app.route("/")
+def index_page():
+    return send_from_directory(".", "index.html")
 
-            event = data.get("event", "").lower()
-            edata = data.get("data", {})
+@app.route("/washer")
+def washer_page():
+    return send_from_directory(".", "washer.html")
 
-            # ---------- BOOT ----------
-            if event == "boot":
-                # keep lock_uid as-is if you want to preserve lock,
-                # or clear it here if you want fresh boot:
-                # clear_lock()
-                last_data["state"] = "Idle" if last_data["lock_uid"] is None else "Locked"
+# ----------------------
+#  API ROUTES
+# ----------------------
 
-            # ---------- START ----------
-            elif event == "start":
-                uid = edata.get("uid", "unknown")
-                secs = int(edata.get("seconds", 0))
-                mm = str(secs // 60).zfill(2)
-                ss = str(secs % 60).zfill(2)
+@app.route("/api/state", methods=["GET"])
+def api_state():
+    data = {k: v for k, v in washer_state.items() if k != "log"}
+    return jsonify(data)
 
-                last_data["rfid"] = uid
-                last_data["state"] = "Running"
-                last_data["time"] = f"{mm}:{ss}"
-                last_data["expected"] = secs // 60
-                last_data["lock_uid"] = None
+@app.route("/api/log", methods=["GET"])
+def api_log():
+    return jsonify(washer_state["log"])
 
-            # ---------- TICK ----------
-            elif event == "tick":
-                rem = int(edata.get("remaining_s", 0))
-                mm = str(rem // 60).zfill(2)
-                ss = str(rem % 60).zfill(2)
-                last_data["time"] = f"{mm}:{ss}"
+@app.route("/api/update", methods=["POST"])
+def api_update():
+    """
+    Pico posts updates here.
+    Expected JSON:
+      state, rfid, expected, time, lock_uid, event
+    """
+    payload = request.get_json(force=True, silent=True) or {}
+    now = datetime.utcnow().isoformat() + "Z"
 
-            # ---------- COMPLETE ----------
-            elif event == "complete":
-                uid = last_data.get("rfid", "None")
-                set_lock(uid)
-                send_sms_textbelt("✅ Laundry cycle complete! Machine locked until scan-out.")
+    # Update fields
+    for key in ["state", "rfid", "expected", "time", "lock_uid"]:
+        if key in payload:
+            washer_state[key] = payload[key]
 
-            # ---------- ABORT ----------
-            elif event == "abort":
-                uid = last_data.get("rfid", "None")
-                set_lock(uid)
-                send_sms_textbelt("⚠️ Laundry cycle aborted—no movement. Machine locked until scan-out.")
+    washer_state["last_update"] = now
 
-            # ---------- UNLOCK (scan-out or override) ----------
-            elif event == "unlock":
-                mode = edata.get("mode", "normal")  # "normal" or "override"
-                print("🔓 UNLOCK EVENT, mode:", mode)
-                clear_lock()
+    # Add log entry
+    event_text = payload.get("event", f"State -> {washer_state['state']}")
+    log_entry = {
+        "ts": now,
+        "state": washer_state["state"],
+        "rfid": washer_state["rfid"],
+        "event": event_text
+    }
 
-            else:
-                print("⚠️ Unknown event:", event)
+    washer_state["log"].insert(0, log_entry)
+    washer_state["log"] = washer_state["log"][:MAX_LOG_ENTRIES]
 
-            self._set_headers(200)
-            self.wfile.write(json.dumps({"ok": True}).encode())
+    # ----------------------
+    #   SMS TRIGGER
+    # ----------------------
+    if washer_state["state"] == "Complete":
+        send_sms("Your laundry cycle is complete! (Machine 1)")
 
-        except Exception as e:
-            print("❌ SERVER ERROR:", e)
-            self._set_headers(400)
-            self.wfile.write(json.dumps({"ok": False}).encode())
+    return jsonify({"ok": True, "timestamp": now})
 
-    def do_GET(self):
-        if self.path == "/api/state":
-            self._set_headers(200)
-            self.wfile.write(json.dumps(last_data).encode())
-        else:
-            self._set_headers(404)
-            self.wfile.write(b"{}")
+# ----------------------
+#  ENTRYPOINT
+# ----------------------
 
-print(f"🚀 BACKEND READY ON PORT {PORT}")
-HTTPServer(("", PORT), Handler).serve_forever()
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
