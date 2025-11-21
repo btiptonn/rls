@@ -1,206 +1,244 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Washer — Machine 1</title>
+
   <style>
     :root {
       --accent: #2a6fb5;
-      --bg: #eef3fa;
-      --card-bg: rgba(255,255,255,0.9);
+      --card-bg: rgba(255,255,255,0.88);
+      --text: #111;
+      --danger: #e24b4b;
+      --success: #30b82e;
+      --complete: #408ef5;
+      --locked: #cc8500;
+      --idle: #7c8ca1;
     }
 
     body {
       font-family: "Segoe UI", Arial, sans-serif;
-      background: var(--bg);
-      background-image: linear-gradient(180deg, #f2f6fc 0%, #dbe7f8 100%);
+      background: #eef3fa;
       margin: 0;
-      color: #1a1a1a;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
     }
 
     header {
       background: var(--accent);
       color: #fff;
-      padding: 1.2rem;
+      padding: 1rem;
       text-align: center;
-      font-size: 1.5rem;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+      font-size: 1.4rem;
     }
 
-    main {
-      flex: 1;
+    a.back {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+    }
+
+    .container {
+      padding: 1.5rem;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 1.5rem;
+      gap: 1.5rem;
+      max-width: 650px;
+      margin: auto;
     }
 
     .card {
       background: var(--card-bg);
-      backdrop-filter: blur(10px);
-      border-radius: 14px;
+      padding: 1.5rem;
+      border-radius: 12px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-      padding: 2rem;
-      width: 360px;
-      text-align: center;
+    }
+
+    .status-big {
+      font-size: 1.5rem;
+      margin-bottom: 0.7rem;
+      font-weight: 600;
+    }
+
+    .state-running { color: var(--success); }
+    .state-complete { color: var(--complete); }
+    .state-aborted { color: var(--danger); }
+    .state-locked { color: var(--locked); }
+    .state-idle { color: var(--idle); }
+
+    .info-row {
+      margin: 6px 0;
+      font-size: 1.1rem;
+    }
+
+    .timer-box {
       margin-top: 1rem;
+      padding: 1rem;
+      background: #f8fbff;
+      border-radius: 10px;
+      font-size: 1.3rem;
+      font-weight: 600;
+      text-align: center;
+      border-left: 4px solid var(--accent);
     }
 
-    .led {
-      width: 55px;
-      height: 55px;
-      border-radius: 50%;
-      margin: 1rem auto;
-      border: 3px solid #333;
-    }
-
-    .led.green { background: #3ad33a; }
-    .led.red { background: #e24b4b; }
-    .led.blue { background: #408ef5; }
-    .led.yellow { background: #f5d547; }
-    .led.gray { background: #c5c5c5; }
-
-    .log {
-      margin-top: 2rem;
-      width: 360px;
-      background: var(--card-bg);
+    #warningBox {
       padding: 1rem;
       border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-
-    button {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 8px;
-      background: var(--accent);
-      color: white;
-      cursor: pointer;
-      font-weight: bold;
+      font-weight: 600;
+      display: none;
       margin-top: 1rem;
-      transition: background 0.2s;
     }
 
-    button:hover {
-      background: #4a8de0;
+    #warningBox.locked {
+      display: block;
+      background: #ffe6bf;
+      border-left: 6px solid var(--locked);
+      color: #844f00;
     }
 
-    footer {
-      text-align: center;
-      font-size: 0.8rem;
-      color: #666;
-      padding: 0.6rem;
+    #warningBox.aborted {
+      display: block;
+      background: #ffd3d3;
+      border-left: 6px solid var(--danger);
+      color: #880000;
+    }
+
+    #warningBox.complete {
+      display: block;
+      background: #dbe9ff;
+      border-left: 6px solid var(--complete);
+      color: #003a99;
+    }
+
+    /* Log List */
+    #eventLog {
+      list-style: none;
+      padding-left: 0;
+      margin-top: 1rem;
+    }
+
+    #eventLog li {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #ccc;
+      font-size: 0.95rem;
     }
   </style>
 </head>
+
 <body>
-  <header>🧺 Washer — Machine 1</header>
+  <header>
+    <a class="back" href="index.html">← Back</a>
+    Washer — Machine 1
+  </header>
 
-  <main>
-    <button onclick="window.location.href='index.html'">⬅ Back to Home</button>
+  <main class="container">
 
+    <!-- MACHINE STATUS CARD -->
     <div class="card">
-      <h3 id="stateText">Idle</h3>
-      <div id="led" class="led gray"></div>
-      <p><strong>RFID:</strong> <span id="rfidText">—</span></p>
-      <p><strong>Cycle timer:</strong> <span id="timerText">00:00</span></p>
-      <p><strong>Expected length:</strong> <span id="expectedText">0</span> min</p>
+      <div id="machineStateText" class="status-big state-idle">Loading...</div>
+
+      <div class="info-row"><strong>RFID:</strong> <span id="rfidStatus">None</span></div>
+      <div class="info-row"><strong>Machine State:</strong> <span id="machineState">Idle</span></div>
+      <div class="info-row"><strong>Expected:</strong> <span id="expected">0</span> min</div>
+
+      <div id="warningBox"></div>
+
+      <div class="timer-box">
+        Time Remaining:<br>
+        <span id="cycleTimer">00:00</span>
+      </div>
+
+      <div class="info-row">
+        <strong>Lock Owner UID:</strong> <span id="lockUID">None</span>
+      </div>
     </div>
 
-    <div class="log">
-      <h3>Event log</h3>
-      <div id="log"></div>
+    <!-- EVENT LOG -->
+    <div class="card">
+      <h3>Event Log</h3>
+      <ul id="eventLog"></ul>
     </div>
+
   </main>
-
-  <footer>© 2025 RLS | Live updates every 3s</footer>
 
   <script>
     const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-    let lastState = "", lastRFID = "";
-    let countdownSeconds = 0, countdownActive = false, initializedRun = false;
-
-    function parseMMSS(t) {
-      if (!t || typeof t !== "string" || !t.includes(":")) return null;
-      const [m, s] = t.split(":").map(Number);
-      return isNaN(m) || isNaN(s) ? null : m * 60 + s;
+    function logEvent(msg) {
+      const ul = document.getElementById("eventLog");
+      const li = document.createElement("li");
+      li.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      ul.prepend(li);
     }
 
-    async function fetchState() {
+    async function updateWasher() {
       try {
         const res = await fetch(API_URL, { cache: "no-store" });
         const data = await res.json();
+
         const state = data.state || "Idle";
-        const rfid = data.rfid || "—";
-        const serverSeconds = parseMMSS(data.time);
+        const rfid = data.rfid || "None";
+        const time = data.time || "00:00";
+        const lock_uid = data.lock_uid || null;
+        const expected = data.expected || 0;
 
-        document.getElementById("rfidText").textContent = rfid;
-        document.getElementById("stateText").textContent = state;
-        document.getElementById("expectedText").textContent = data.expected || 0;
+        document.getElementById("rfidStatus").textContent = rfid;
+        document.getElementById("machineState").textContent = state;
+        document.getElementById("expected").textContent = expected;
+        document.getElementById("cycleTimer").textContent = time;
+        document.getElementById("lockUID").textContent = lock_uid || "None";
 
-        const led = document.getElementById("led");
-        led.className = "led " +
-          (state === "Running" ? "green" :
-           state === "Complete" ? "blue" :
-           state === "Aborted" ? "red" :
-           state === "Booted" ? "yellow" : "gray");
+        const bigStatus = document.getElementById("machineStateText");
+        const warning = document.getElementById("warningBox");
 
+        // Reset warning
+        warning.className = "";
+        warning.style.display = "none";
+
+        // Apply UI state
         if (state === "Running") {
-          if (!initializedRun || lastState !== "Running") {
-            if (serverSeconds !== null) countdownSeconds = serverSeconds;
-            countdownActive = true;
-            initializedRun = true;
-            addLog(`Cycle started (${data.time})`);
-          } else if (serverSeconds !== null && serverSeconds < countdownSeconds - 3) {
-            countdownSeconds = serverSeconds;
-          }
+          bigStatus.textContent = `Running (${time})`;
+          bigStatus.className = "status-big state-running";
+
+        } else if (state === "Complete") {
+          bigStatus.textContent = "Cycle Complete — Scan Out Required";
+          bigStatus.className = "status-big state-complete";
+          warning.textContent = "The machine finished. The previous user must scan out.";
+          warning.classList.add("complete");
+
+        } else if (state === "Aborted") {
+          bigStatus.textContent = "Aborted — Scan Out Required";
+          bigStatus.className = "status-big state-aborted";
+          warning.textContent = "No movement detected. Laundry cycle aborted.";
+          warning.classList.add("aborted");
+
+        } else if (state === "Locked") {
+          bigStatus.textContent = "Locked — Waiting For Previous User";
+          bigStatus.className = "status-big state-locked";
+          warning.textContent = lock_uid
+            ? `Machine Locked by UID ${lock_uid}. Scan-out or Override Required.`
+            : "Machine Locked.";
+          warning.classList.add("locked");
+
         } else {
-          countdownActive = false;
-          initializedRun = false;
-          if (state === "Aborted" || state === "Complete") countdownSeconds = 0;
+          bigStatus.textContent = "Idle — Machine Ready";
+          bigStatus.className = "status-big state-idle";
         }
 
-        if (state === "Aborted") {
-          countdownActive = false;
-          countdownSeconds = 0;
-          document.getElementById("timerText").textContent = "00:00";
-          addLog("Cycle aborted due to inactivity.");
-        }
+        // Event logging (optional)
+        logEvent(`State: ${state}, Time: ${time}, RFID: ${rfid}`);
 
-        if (state !== lastState || rfid !== lastRFID) {
-          addLog(`State → ${state}, RFID: ${rfid}`);
-          lastState = state;
-          lastRFID = rfid;
-        }
       } catch (err) {
-        console.error("Fetch error:", err);
+        console.error(err);
+        document.getElementById("machineStateText").textContent = "Server Offline";
       }
     }
 
-    function tickTimer() {
-      if (countdownActive && countdownSeconds > 0) countdownSeconds--;
-      const m = String(Math.floor(countdownSeconds / 60)).padStart(2, "0");
-      const s = String(countdownSeconds % 60).padStart(2, "0");
-      document.getElementById("timerText").textContent = `${m}:${s}`;
-    }
-
-    function addLog(msg) {
-      const logDiv = document.getElementById("log");
-      const t = new Date().toLocaleTimeString();
-      const e = document.createElement("div");
-      e.className = "logentry";
-      e.textContent = `${msg} — ${t}`;
-      logDiv.prepend(e);
-    }
-
-    setInterval(fetchState, 3000);
-    setInterval(tickTimer, 1000);
-    fetchState();
+    updateWasher();
+    setInterval(updateWasher, 3000);
   </script>
 </body>
 </html>
