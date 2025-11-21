@@ -16,7 +16,7 @@ import urllib.parse
 # ============================================================
 
 PHONE_NUMBER = "+12569246101"       # <--- replace with your phone (ex: +12565551234)
-TEXTBELT_KEY = "797d161d1c256b18b56a937777d3011de59b4c0eiaUVHwbOvxFgv01X2jDWEyWye" # <--- replace with your paid API key
+TEXTBELT_KEY = "" # <--- replace with your paid API key
 
 PORT = 10000    # Render will override internally, but keep this
 
