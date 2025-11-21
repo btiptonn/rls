@@ -7,9 +7,9 @@ import requests
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# ----------------------
-#  GLOBAL WASHER STATE
-# ----------------------
+# ---------------------------
+# GLOBAL WASHER STATE
+# ---------------------------
 washer_state = {
     "state": "Idle",
     "rfid": None,
@@ -22,19 +22,15 @@ washer_state = {
 
 MAX_LOG_ENTRIES = 50
 
-# ----------------------
-#  TEXTBELT SMS CONFIG
-# ----------------------
-
-USER_PHONE = "+1XXXXXXXXXX"    # <-- PUT YOUR PHONE HERE
-TEXTBELT_KEY = "textbelt"      # free key (1 SMS/day)
+# ---------------------------
+# TEXTBELT SMS SETTINGS
+# ---------------------------
+USER_PHONE = "+1XXXXXXXXXX"      # your number
+TEXTBELT_KEY = "textbelt"        # free key
 
 def send_sms(message):
-    """
-    Sends a text message using Textbelt API.
-    """
     try:
-        print("Sending SMS:", message)
+        print("SMS:", message)
         resp = requests.post(
             "https://textbelt.com/text",
             {
@@ -43,14 +39,13 @@ def send_sms(message):
                 "key": TEXTBELT_KEY
             }
         )
-        print("Textbelt response:", resp.text)
+        print("SMS result:", resp.text)
     except Exception as e:
         print("SMS ERROR:", e)
 
-# ----------------------
-#  STATIC FILE ROUTES
-# ----------------------
-
+# ---------------------------
+# STATIC ROUTES
+# ---------------------------
 @app.route("/")
 def index_page():
     return send_from_directory(".", "index.html")
@@ -59,60 +54,84 @@ def index_page():
 def washer_page():
     return send_from_directory(".", "washer.html")
 
-# ----------------------
-#  API ROUTES
-# ----------------------
-
+# ---------------------------
+# API — GET STATE
+# ---------------------------
 @app.route("/api/state", methods=["GET"])
 def api_state():
-    data = {k: v for k, v in washer_state.items() if k != "log"}
-    return jsonify(data)
+    return jsonify({k: v for k, v in washer_state.items() if k != "log"})
 
+# ---------------------------
+# API — GET LOG
+# ---------------------------
 @app.route("/api/log", methods=["GET"])
 def api_log():
     return jsonify(washer_state["log"])
 
+# ---------------------------
+# API — UPDATE STATE
+# ---------------------------
 @app.route("/api/update", methods=["POST"])
 def api_update():
-    """
-    Pico posts updates here.
-    Expected JSON:
-      state, rfid, expected, time, lock_uid, event
-    """
     payload = request.get_json(force=True, silent=True) or {}
     now = datetime.utcnow().isoformat() + "Z"
 
-    # Update fields
-    for key in ["state", "rfid", "expected", "time", "lock_uid"]:
-        if key in payload:
-            washer_state[key] = payload[key]
+    # Server expects JSON from Pico here:
+    # {
+    #   "device_id": "...",
+    #   "event": "start/tick/abort/complete",
+    #   "ts_ms": 123456,
+    #   "data": { "uid": "...", "seconds": 30 }
+    # }
+
+    event = payload.get("event", "")
+    data  = payload.get("data", {})
+
+    # Interpret events:
+    if event == "start":
+        washer_state["state"] = "Running"
+        washer_state["rfid"] = data.get("uid")
+        washer_state["expected"] = int(data.get("seconds", 0) // 60)
+        washer_state["time"] = f"{data.get('seconds',0)//60:02d}:{data.get('seconds',0)%60:02d}"
+
+    elif event == "tick":
+        remaining = data.get("remaining_s", 0)
+        washer_state["time"] = f"{remaining//60:02d}:{remaining%60:02d}"
+
+    elif event == "abort":
+        washer_state["state"] = "Aborted"
+
+    elif event == "complete":
+        washer_state["state"] = "Complete"
+
+    elif event == "unlock":
+        washer_state["state"] = "Idle"
+        washer_state["rfid"] = None
+        washer_state["expected"] = 0
+        washer_state["time"] = "00:00"
 
     washer_state["last_update"] = now
 
-    # Add log entry
-    event_text = payload.get("event", f"State -> {washer_state['state']}")
+    # Log everything
     log_entry = {
         "ts": now,
+        "event": event,
         "state": washer_state["state"],
-        "rfid": washer_state["rfid"],
-        "event": event_text
+        "rfid": washer_state["rfid"]
     }
 
     washer_state["log"].insert(0, log_entry)
     washer_state["log"] = washer_state["log"][:MAX_LOG_ENTRIES]
 
-    # ----------------------
-    #   SMS TRIGGER
-    # ----------------------
+    # SMS
     if washer_state["state"] == "Complete":
-        send_sms("Your laundry cycle is complete! (Machine 1)")
+        send_sms("Your laundry cycle is COMPLETE (Machine 1)")
 
-    return jsonify({"ok": True, "timestamp": now})
-
-# ----------------------
-#  ENTRYPOINT
-# ----------------------
-
+    return jsonify({"ok": True})
+    
+# ---------------------------
+# START
+# ---------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
