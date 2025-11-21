@@ -51,12 +51,7 @@
       padding: 2rem;
       width: 340px;
       text-align: center;
-      transition: transform 0.2s ease;
     }
-
-    .card:hover { transform: translateY(-3px); }
-
-    .status { font-size: 1.1rem; margin-bottom: 1.5rem; }
 
     .floor-btn {
       display: inline-block;
@@ -65,31 +60,28 @@
       color: #fff;
       font-weight: 600;
       text-decoration: none;
-      transition: background 0.2s ease, transform 0.1s ease;
     }
 
-    .floor-btn:hover { transform: scale(1.03); }
+    .running  { background: #30b82e; }   /* Green */
+    .aborted  { background: #e24b4b; }   /* Red */
+    .complete { background: #408ef5; }   /* Blue */
+    .idle     { background: #d0d0d0; }   /* White/Gray */
+    .locked   { background: #ff8800; }   /* Orange */
 
-    .running { background: #30b82e; }
-    .aborted { background: #e24b4b; }
-    .complete { background: #408ef5; }
-    .locked { background: #cc8500; }
-    .idle { background: #7c8ca1; }
-
-    /* USER GUIDE */
-    .guide, .legend {
+    .legend, .guide {
       width: 340px;
       background: var(--card-bg);
       padding: 1.5rem;
       border-radius: 14px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      font-size: 0.95rem;
     }
 
-    .guide h2, .legend h3 { text-align: center; margin-top: 0; }
+    .legend h3, .guide h2 {
+      margin-top: 0;
+      text-align: center;
+    }
 
-    .guide ul { padding-left: 20px; }
-
-    /* LEGEND */
     .legend-item {
       display: flex;
       align-items: center;
@@ -99,8 +91,9 @@
     .color-box {
       width: 20px;
       height: 20px;
-      border-radius: 4px;
+      border-radius: 5px;
       margin-right: 10px;
+      border: 1px solid #999;
     }
 
     footer {
@@ -116,7 +109,8 @@
   <header>🏢 Residential Laundry System</header>
 
   <main>
-    <!-- STATUS CARD -->
+
+    <!-- MAIN STATUS CARD -->
     <div class="card">
       <div class="status" id="statusText">Checking washer status...</div>
       <a id="washerBtn" class="floor-btn idle" href="washer.html">
@@ -128,44 +122,48 @@
     <section class="guide">
       <h2>📘 User Guide</h2>
       <ul>
-        <li>Scan your RFID tag to unlock the machine.</li>
-        <li>Select a cycle time: 30 / 45 / 60 minutes.</li>
-        <li>The washer automatically monitors vibration.</li>
-        <li>If Locked: previous user must scan-out.</li>
-        <li>Override: hold your RFID 3 seconds to take over.</li>
-        <li>SMS alert sent when cycle completes or aborts.</li>
+        <li>Scan your RFID tag to unlock or claim the washer.</li>
+        <li>Once the LED turns <strong>green</strong>, select a cycle time using the buttons.</li>
+        <li>The machine automatically detects movement using an internal vibration sensor.</li>
+        <li>If no movement is detected for too long, the washer will <strong>abort</strong> and turn <strong>red</strong>.</li>
+        <li>When the laundry finishes, the LED turns <strong>blue</strong>. The washer enters lock mode.</li>
+        <li>You are asked to scan your RFID again to <strong>scan out</strong> and unlock the machine.</li>
+        <li>If the previous user forgets to scan out, another user can override the lock by holding their RFID on the reader for <strong>3 seconds</strong> until the LED flashes override mode.</li>
+        <li>While locked, the LED stays <strong>orange</strong>.</li>
+        <li>When idle with no activity, the LED stays <strong>white</strong>.</li>
       </ul>
     </section>
 
     <!-- LEGEND -->
     <section class="legend">
-      <h3>Legend</h3>
+      <h3>LED / Status Legend</h3>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#ffffff;"></div>
+        Idle — Machine unused, waiting for a user.
+      </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#30b82e;"></div>
-        Running — Laundry active
+        Running — Valid RFID scanned & cycle in progress.
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#408ef5;"></div>
-        Complete — Scan-out required
+        Complete — Cycle finished; user must scan out.
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#e24b4b;"></div>
-        Aborted — No vibration detected
+        Aborted — No movement detected; machine locked.
       </div>
 
       <div class="legend-item">
-        <div class="color-box" style="background:#cc8500;"></div>
-        Locked — Waiting for scan-out / override
-      </div>
-
-      <div class="legend-item">
-        <div class="color-box" style="background:#7c8ca1;"></div>
-        Idle — Available to use
+        <div class="color-box" style="background:#ff8800;"></div>
+        Locked — Waiting for scan-out or 3s override.
       </div>
     </section>
+
   </main>
 
   <footer>© 2025 RLS System | Status updates every 3s</footer>
@@ -180,21 +178,18 @@
       try {
         const res = await fetch(API_URL, { cache: "no-store" });
         const data = await res.json();
-
         const state = data.state || "Idle";
-        const time  = data.time || "00:00";
 
         washerBtn.className = `floor-btn ${state.toLowerCase()}`;
         washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
 
         statusText.textContent =
-          state === "Running"  ? `Running (${time})` :
-          state === "Locked"   ? "Locked — Scan-out or Override Required" :
-          state === "Aborted"  ? "Aborted — User must scan-out" :
-          state === "Complete" ? "Complete — User must scan-out" :
+          state === "Running"  ? `Running (${data.time})` :
+          state === "Locked"   ? "Machine locked — waiting for scan-out or override" :
+          state === "Aborted"  ? "Cycle aborted — scan out required" :
+          state === "Complete" ? "Cycle complete — scan out required" :
           "Machine Open";
-
-      } catch (err) {
+      } catch {
         washerBtn.className = "floor-btn idle";
         washerBtn.textContent = "Washer Offline";
         statusText.textContent = "Server not reachable.";
@@ -204,5 +199,6 @@
     updateIndex();
     setInterval(updateIndex, 3000);
   </script>
+
 </body>
 </html>
