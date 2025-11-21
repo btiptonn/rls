@@ -54,14 +54,9 @@
       transition: transform 0.2s ease;
     }
 
-    .card:hover {
-      transform: translateY(-3px);
-    }
+    .card:hover { transform: translateY(-3px); }
 
-    .status {
-      font-size: 1.1rem;
-      margin-bottom: 1.5rem;
-    }
+    .status { font-size: 1.1rem; margin-bottom: 1.5rem; }
 
     .floor-btn {
       display: inline-block;
@@ -70,29 +65,31 @@
       color: #fff;
       font-weight: 600;
       text-decoration: none;
-      transition: background 0.2s ease, transform 0.1s;
+      transition: background 0.2s ease, transform 0.1s ease;
     }
+
+    .floor-btn:hover { transform: scale(1.03); }
 
     .running { background: #30b82e; }
     .aborted { background: #e24b4b; }
     .complete { background: #408ef5; }
-    .idle { background: #7c8ca1; }
     .locked { background: #cc8500; }
+    .idle { background: #7c8ca1; }
 
-    .legend {
+    /* USER GUIDE */
+    .guide, .legend {
       width: 340px;
       background: var(--card-bg);
       padding: 1.5rem;
       border-radius: 14px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-      font-size: 0.95rem;
     }
 
-    .legend h3 {
-      margin-top: 0;
-      text-align: center;
-    }
+    .guide h2, .legend h3 { text-align: center; margin-top: 0; }
 
+    .guide ul { padding-left: 20px; }
+
+    /* LEGEND */
     .legend-item {
       display: flex;
       align-items: center;
@@ -102,7 +99,7 @@
     .color-box {
       width: 20px;
       height: 20px;
-      border-radius: 5px;
+      border-radius: 4px;
       margin-right: 10px;
     }
 
@@ -114,10 +111,12 @@
     }
   </style>
 </head>
+
 <body>
   <header>🏢 Residential Laundry System</header>
 
   <main>
+    <!-- STATUS CARD -->
     <div class="card">
       <div class="status" id="statusText">Checking washer status...</div>
       <a id="washerBtn" class="floor-btn idle" href="washer.html">
@@ -125,34 +124,48 @@
       </a>
     </div>
 
-    <div class="legend">
+    <!-- USER GUIDE -->
+    <section class="guide">
+      <h2>📘 User Guide</h2>
+      <ul>
+        <li>Scan your RFID tag to unlock the machine.</li>
+        <li>Select a cycle time: 30 / 45 / 60 minutes.</li>
+        <li>The washer automatically monitors vibration.</li>
+        <li>If Locked: previous user must scan-out.</li>
+        <li>Override: hold your RFID 3 seconds to take over.</li>
+        <li>SMS alert sent when cycle completes or aborts.</li>
+      </ul>
+    </section>
+
+    <!-- LEGEND -->
+    <section class="legend">
       <h3>Legend</h3>
 
       <div class="legend-item">
         <div class="color-box" style="background:#30b82e;"></div>
-        Running — Laundry is actively washing.
+        Running — Laundry active
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#408ef5;"></div>
-        Complete — Cycle finished. Please scan out.
+        Complete — Scan-out required
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#e24b4b;"></div>
-        Aborted — No movement detected. Check laundry.
+        Aborted — No vibration detected
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#cc8500;"></div>
-        Locked — Waiting for previous user to scan out.
+        Locked — Waiting for scan-out / override
       </div>
 
       <div class="legend-item">
         <div class="color-box" style="background:#7c8ca1;"></div>
-        Idle — Machine free and ready.
+        Idle — Available to use
       </div>
-    </div>
+    </section>
   </main>
 
   <footer>© 2025 RLS System | Status updates every 3s</footer>
@@ -167,26 +180,29 @@
       try {
         const res = await fetch(API_URL, { cache: "no-store" });
         const data = await res.json();
+
         const state = data.state || "Idle";
+        const time  = data.time || "00:00";
 
         washerBtn.className = `floor-btn ${state.toLowerCase()}`;
         washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
 
         statusText.textContent =
-          state === "Running"  ? `Running (${data.time})` :
-          state === "Locked"   ? "Machine locked — waiting for previous user" :
-          state === "Aborted"  ? "Cycle aborted — scan out required" :
-          state === "Complete" ? "Cycle complete — scan out required" :
+          state === "Running"  ? `Running (${time})` :
+          state === "Locked"   ? "Locked — Scan-out or Override Required" :
+          state === "Aborted"  ? "Aborted — User must scan-out" :
+          state === "Complete" ? "Complete — User must scan-out" :
           "Machine Open";
-      } catch {
+
+      } catch (err) {
         washerBtn.className = "floor-btn idle";
         washerBtn.textContent = "Washer Offline";
         statusText.textContent = "Server not reachable.";
       }
     }
 
-    setInterval(updateIndex, 3000);
     updateIndex();
+    setInterval(updateIndex, 3000);
   </script>
 </body>
 </html>
