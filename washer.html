@@ -29,6 +29,7 @@
       padding: 1rem;
       text-align: center;
       font-size: 1.4rem;
+      position: relative;
     }
 
     a.back {
@@ -65,8 +66,8 @@
     .state-running { color: var(--success); }
     .state-complete { color: var(--complete); }
     .state-aborted { color: var(--danger); }
-    .state-locked { color: var(--locked); }
-    .state-idle { color: var(--idle); }
+    .state-locked  { color: var(--locked); }
+    .state-idle    { color: var(--idle); }
 
     .info-row {
       margin: 6px 0;
@@ -165,72 +166,142 @@
   </main>
 
   <script>
-  const API_URL = "https://rls-uvzg.onrender.com/api/state";
+    // IMPORTANT: this should be your Render backend URL
+    const API_STATE_URL = "https://rls-uvzg.onrender.com/api/state";
+    const API_LOG_URL   = "https://rls-uvzg.onrender.com/api/log";
 
-  let remainingSeconds = null;
-  let lastState = null;
+    let remainingSeconds = null;
+    let lastState = null;
 
-  function parseTime(t) {
-    const [m, s] = t.split(":");
-    return (parseInt(m) * 60) + parseInt(s);
-  }
-
-  function formatTime(sec) {
-    const m = Math.floor(sec / 60).toString().padStart(2, "0");
-    const s = Math.floor(sec % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  }
-
-  // ---- COUNTDOWN LOOP ----
-  setInterval(() => {
-    if (remainingSeconds !== null && lastState === "Running") {
-      remainingSeconds--;
-      if (remainingSeconds < 0) remainingSeconds = 0;
-      document.getElementById("cycleTimer").textContent =
-        formatTime(remainingSeconds);
+    function parseTime(t) {
+      const [m, s] = t.split(":");
+      return (parseInt(m) * 60) + parseInt(s);
     }
-  }, 1000);
 
-  // ---- SERVER POLL ----
-  async function updateWasher() {
-    try {
-      const res = await fetch(API_URL, { cache: "no-store" });
-      const data = await res.json();
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, "0");
+      const s = Math.floor(sec % 60).toString().padStart(2, "0");
+      return `${m}:${s}`;
+    }
 
-      const state = data.state || "Idle";
-      const time = data.time || "00:00";
+    function setStateHeadline(state) {
+      const el = document.getElementById("machineStateText");
+      el.className = "status-big";
 
-      // Update other UI elements normally
-      document.getElementById("machineState").textContent = state;
-      document.getElementById("rfidStatus").textContent = data.rfid || "None";
-      document.getElementById("expected").textContent = data.expected || 0;
-      document.getElementById("lockUID").textContent = data.lock_uid || "None";
+      let cls = "state-idle";
+      let text = "Idle";
 
-      // ---- TIMER LOGIC FIX ----
-      const serverSec = parseTime(time);
-
-      if (state !== lastState) {
-        // State changed → trust the server completely
-        remainingSeconds = serverSec;
-        document.getElementById("cycleTimer").textContent = formatTime(serverSec);
+      switch (state) {
+        case "Running":
+          cls = "state-running"; text = "Running"; break;
+        case "Complete":
+          cls = "state-complete"; text = "Cycle Complete"; break;
+        case "Aborted":
+          cls = "state-aborted"; text = "Cycle Aborted"; break;
+        case "Locked":
+          cls = "state-locked"; text = "Machine Locked"; break;
+        default:
+          cls = "state-idle"; text = state || "Idle";
       }
 
-      // If difference > 3 seconds → drift correction
-      if (Math.abs(serverSec - remainingSeconds) > 3) {
-        remainingSeconds = serverSec;
-      }
-
-      lastState = state;
-
-    } catch (err) {
-      console.error(err);
+      el.classList.add(cls);
+      el.textContent = text;
     }
-  }
 
-  updateWasher();
-  setInterval(updateWasher, 1000); // 1s updates without breaking countdown
-</script>
+    function setWarningBox(state) {
+      const wb = document.getElementById("warningBox");
+      wb.className = "";
+      wb.style.display = "none";
+      wb.textContent = "";
+
+      if (state === "Locked") {
+        wb.classList.add("locked");
+        wb.textContent = "Machine is locked for this user.";
+      } else if (state === "Aborted") {
+        wb.classList.add("aborted");
+        wb.textContent = "Cycle was aborted. Please check the machine.";
+      } else if (state === "Complete") {
+        wb.classList.add("complete");
+        wb.textContent = "Cycle complete! Please remove your laundry.";
+      }
+    }
+
+    // ---- COUNTDOWN LOOP ----
+    setInterval(() => {
+      if (remainingSeconds !== null && lastState === "Running") {
+        remainingSeconds--;
+        if (remainingSeconds < 0) remainingSeconds = 0;
+        document.getElementById("cycleTimer").textContent =
+          formatTime(remainingSeconds);
+      }
+    }, 1000);
+
+    // ---- SERVER POLL ----
+    async function updateWasher() {
+      try {
+        const res = await fetch(API_STATE_URL, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const state = data.state || "Idle";
+        const time = data.time || "00:00";
+
+        // Update other UI elements normally
+        document.getElementById("machineState").textContent = state;
+        document.getElementById("rfidStatus").textContent = data.rfid || "None";
+        document.getElementById("expected").textContent = data.expected || 0;
+        document.getElementById("lockUID").textContent = data.lock_uid || "None";
+
+        setStateHeadline(state);
+        setWarningBox(state);
+
+        // ---- TIMER LOGIC ----
+        const serverSec = parseTime(time);
+
+        if (state !== lastState) {
+          // State changed → trust the server completely
+          remainingSeconds = serverSec;
+          document.getElementById("cycleTimer").textContent = formatTime(serverSec);
+        }
+
+        // If difference > 3 seconds → drift correction
+        if (remainingSeconds === null || Math.abs(serverSec - remainingSeconds) > 3) {
+          remainingSeconds = serverSec;
+        }
+
+        lastState = state;
+
+      } catch (err) {
+        console.error("updateWasher error:", err);
+      }
+    }
+
+    async function fetchLog() {
+      try {
+        const res = await fetch(API_LOG_URL, { cache: "no-store" });
+        if (!res.ok) return;
+        const log = await res.json();
+        const ul = document.getElementById("eventLog");
+        ul.innerHTML = "";
+
+        log.forEach(entry => {
+          const li = document.createElement("li");
+          li.textContent = `[${entry.ts}] ${entry.event} (state: ${entry.state}, RFID: ${entry.rfid || "None"})`;
+          ul.appendChild(li);
+        });
+      } catch (err) {
+        console.error("fetchLog error:", err);
+      }
+    }
+
+    // initial load + polling
+    updateWasher();
+    fetchLog();
+
+    setInterval(() => {
+      updateWasher();
+      fetchLog();
+    }, 2000); // 2s poll
+  </script>
 </body>
 </html>
-
-
