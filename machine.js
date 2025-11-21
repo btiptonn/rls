@@ -69,34 +69,29 @@
 
   // ---- APPLY SERVER STATUS WITH DRIFT CORRECTION ----
   function applyServerStatus(data) {
-    // Adjust these field names to match your real JSON keys
-    const serverState          = data.state || "Idle";
-    const serverRemaining      = Number(data.remaining_seconds ?? data.remaining ?? 0);
-    const serverNegative       = Number(data.overtime_seconds ?? data.neg_seconds ?? 0);
-    const serverExpectedMin    = Number(data.expected_minutes ?? Math.ceil(serverRemaining / 60));
-    const serverRFID           = data.rfid || data.lock_owner_uid || "None";
+    const serverState = data.state || "Idle";
+    const serverRemaining = Number(data.remaining_seconds ?? 0);
+    const serverNegative = Number(data.overtime_seconds ?? 0);
+    const serverRFID = data.rfid || "None";
+    const serverExpectedMin = Math.ceil(serverRemaining / 60);
 
-    // Log state changes
-    if (serverState !== lastServerState) {
-      logEvent(`state: ${serverState}, RFID: ${serverRFID}`);
-      lastServerState = serverState;
-    }
+    // ---- compute how old the data is ----
+    const lastUpdate = new Date(data.last_update).getTime();
+    const now = Date.now();
+    const ageSeconds = Math.floor((now - lastUpdate) / 1000);
 
-    // Drift correction: only snap if big disagreement
-    const diff = Math.abs(serverRemaining - remainingSeconds);
-    if (lastServerRemaining === null || diff > DRIFT_MAX || serverState !== state) {
-      remainingSeconds = serverRemaining;
-      lastServerRemaining = serverRemaining;
-    }
+    // ---- adjust remaining time using timestamp ----
+    const adjustedRemaining = serverRemaining - ageSeconds;
 
-    state = serverState;
+    // ---- apply correction ----
+    remainingSeconds = adjustedRemaining;
     negativeSeconds = serverNegative;
     expectedMinutes = serverExpectedMin;
+    state = serverState;
     rfid = serverRFID;
 
     updateDisplay();
-  }
-
+}
   // ---- POLL BACKEND ----
   async function pollStatus() {
     try {
@@ -121,4 +116,5 @@
   // Initial paint
   updateDisplay();
 })();
+
 
