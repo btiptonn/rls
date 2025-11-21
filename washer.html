@@ -167,78 +167,98 @@
   <script>
     const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-    function logEvent(msg) {
-      const ul = document.getElementById("eventLog");
-      const li = document.createElement("li");
-      li.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-      ul.prepend(li);
+    let remainingSeconds = 0;   // local countdown value
+    let lastState = "Idle";
+
+    function parseTime(t) {
+        if (!t || t === "00:00") return 0;
+        const [mm, ss] = t.split(":").map(Number);
+        return mm * 60 + ss;
     }
 
-    async function updateWasher() {
-      try {
-        const res = await fetch(API_URL, { cache: "no-store" });
-        const data = await res.json();
+    function formatTime(sec) {
+        if (sec < 0) sec = 0;
+        const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+        const ss = String(sec % 60).padStart(2, "0");
+        return `${mm}:${ss}`;
+    }
 
-        const state = data.state || "Idle";
-        const rfid = data.rfid || "None";
-        const time = data.time || "00:00";
-        const lock_uid = data.lock_uid || null;
-        const expected = data.expected || 0;
+    async function fetchState() {
+        try {
+            const res = await fetch(API_URL, { cache: "no-store" });
+            const data = await res.json();
 
-        document.getElementById("rfidStatus").textContent = rfid;
-        document.getElementById("machineState").textContent = state;
-        document.getElementById("expected").textContent = expected;
-        document.getElementById("cycleTimer").textContent = time;
-        document.getElementById("lockUID").textContent = lock_uid || "None";
+            const state = data.state || "Idle";
+            const timeStr = data.time || "00:00";
+            const lock_uid = data.lock_uid || null;
+            const rfid = data.rfid || "None";
+            const expected = data.expected || 0;
 
-        const bigStatus = document.getElementById("machineStateText");
-        const warning = document.getElementById("warningBox");
+            // Update static fields
+            document.getElementById("rfidStatus").textContent = rfid;
+            document.getElementById("machineState").textContent = state;
+            document.getElementById("expected").textContent = expected;
+            document.getElementById("lockUID").textContent = lock_uid || "None";
 
-        // Reset warning
-        warning.className = "";
-        warning.style.display = "none";
+            const bigStatus = document.getElementById("machineStateText");
+            const warning = document.getElementById("warningBox");
 
-        // Apply UI state
-        if (state === "Running") {
-          bigStatus.textContent = `Running (${time})`;
-          bigStatus.className = "status-big state-running";
+            warning.style.display = "none";
+            warning.className = "";
 
-        } else if (state === "Complete") {
-          bigStatus.textContent = "Cycle Complete — Scan Out Required";
-          bigStatus.className = "status-big state-complete";
-          warning.textContent = "The machine finished. The previous user must scan out.";
-          warning.classList.add("complete");
+            // ---- Update UI text but not timer countdown ----
+            if (state === "Running") {
+                bigStatus.textContent = `Running (${timeStr})`;
+                bigStatus.className = "status-big state-running";
+            } else if (state === "Complete") {
+                bigStatus.textContent = "Cycle Complete — Scan Out Required";
+                bigStatus.className = "status-big state-complete";
+                warning.textContent = "The machine finished. The previous user must scan out.";
+                warning.classList.add("complete");
+                warning.style.display = "block";
+            } else if (state === "Aborted") {
+                bigStatus.textContent = "Aborted — Scan Out Required";
+                bigStatus.className = "status-big state-aborted";
+                warning.textContent = "No movement detected. Laundry cycle aborted.";
+                warning.classList.add("aborted");
+                warning.style.display = "block";
+            } else if (state === "Locked") {
+                bigStatus.textContent = "Locked — Waiting for Previous User";
+                bigStatus.className = "status-big state-locked";
+                warning.textContent = lock_uid ?
+                    `Machine Locked by UID ${lock_uid}. Scan-out or Override Required.` :
+                    "Machine Locked.";
+                warning.classList.add("locked");
+                warning.style.display = "block";
+            } else {
+                bigStatus.textContent = "Idle — Machine Ready";
+                bigStatus.className = "status-big state-idle";
+            }
 
-        } else if (state === "Aborted") {
-          bigStatus.textContent = "Aborted — Scan Out Required";
-          bigStatus.className = "status-big state-aborted";
-          warning.textContent = "No movement detected. Laundry cycle aborted.";
-          warning.classList.add("aborted");
+            // ---- Sync timer only when running ----
+            if (state === "Running") {
+                remainingSeconds = parseTime(timeStr);
+            }
 
-        } else if (state === "Locked") {
-          bigStatus.textContent = "Locked — Waiting For Previous User";
-          bigStatus.className = "status-big state-locked";
-          warning.textContent = lock_uid
-            ? `Machine Locked by UID ${lock_uid}. Scan-out or Override Required.`
-            : "Machine Locked.";
-          warning.classList.add("locked");
-
-        } else {
-          bigStatus.textContent = "Idle — Machine Ready";
-          bigStatus.className = "status-big state-idle";
+            lastState = state;
+        } catch (err) {
+            console.error("Fetch error:", err);
         }
-
-        // Event logging (optional)
-        logEvent(`State: ${state}, Time: ${time}, RFID: ${rfid}`);
-
-      } catch (err) {
-        console.error(err);
-        document.getElementById("machineStateText").textContent = "Server Offline";
-      }
     }
 
-    updateWasher();
-    setInterval(updateWasher, 3000);
-  </script>
+    // Smooth local countdown timer
+    setInterval(() => {
+        if (lastState === "Running" && remainingSeconds > 0) {
+            remainingSeconds--;
+            document.getElementById("cycleTimer").textContent = formatTime(remainingSeconds);
+        }
+    }, 1000);
+
+    // Poll server every 3s for corrected time
+    setInterval(fetchState, 3000);
+
+    fetchState();
+</script>
 </body>
 </html>
+
