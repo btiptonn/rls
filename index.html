@@ -73,32 +73,37 @@
       transition: background 0.2s ease, transform 0.1s;
     }
 
-    .floor-btn:hover {
-      transform: scale(1.03);
-    }
-
     .running { background: #30b82e; }
     .aborted { background: #e24b4b; }
     .complete { background: #408ef5; }
-    .locked { background: #a56de2; }
     .idle { background: #7c8ca1; }
+    .locked { background: #cc8500; }
 
-    .guide {
+    .legend {
+      width: 340px;
       background: var(--card-bg);
       padding: 1.5rem;
-      border-radius: 12px;
-      width: 340px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      backdrop-filter: blur(10px);
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      font-size: 0.95rem;
     }
 
-    .guide h2 {
+    .legend h3 {
       margin-top: 0;
       text-align: center;
     }
 
-    .guide ul {
-      padding-left: 20px;
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+    }
+
+    .color-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      margin-right: 10px;
     }
 
     footer {
@@ -107,7 +112,6 @@
       font-size: 0.85rem;
       color: #666;
     }
-
   </style>
 </head>
 <body>
@@ -121,18 +125,34 @@
       </a>
     </div>
 
-    <section class="guide">
-      <h2>📘 User Guide</h2>
-      <ul>
-        <li>Scan your RFID tag on the machine to unlock the washer.</li>
-        <li>Select your desired cycle time (30/45/60 minutes).</li>
-        <li>The machine will monitor vibration automatically.</li>
-        <li>If the system is <strong>still in use</strong>, the previous user should rescan their card to clear it.</li>
-        <li>If Previous User Failed to scan out, Reset system with new RFID(Purple LED)</li>
-        <li>When finished, return to remove laundry and scan out.</li>
-        <li>You will receive SMS alerts when the cycle completes or aborts.</li>
-      </ul>
-    </section>
+    <div class="legend">
+      <h3>Legend</h3>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#30b82e;"></div>
+        Running — Laundry is actively washing.
+      </div>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#408ef5;"></div>
+        Complete — Cycle finished. Please scan out.
+      </div>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#e24b4b;"></div>
+        Aborted — No movement detected. Check laundry.
+      </div>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#cc8500;"></div>
+        Locked — Waiting for previous user to scan out.
+      </div>
+
+      <div class="legend-item">
+        <div class="color-box" style="background:#7c8ca1;"></div>
+        Idle — Machine free and ready.
+      </div>
+    </div>
   </main>
 
   <footer>© 2025 RLS System | Status updates every 3s</footer>
@@ -154,9 +174,9 @@
 
         statusText.textContent =
           state === "Running"  ? `Running (${data.time})` :
-          state === "Aborted"  ? "Aborted — Pending User Scan-Out" :
-          state === "Complete" ? "Complete — Pending User Scan-Out" :
-          state === "Locked"   ? "Locked — Awaiting Scan-Out" :
+          state === "Locked"   ? "Machine locked — waiting for previous user" :
+          state === "Aborted"  ? "Cycle aborted — scan out required" :
+          state === "Complete" ? "Cycle complete — scan out required" :
           "Machine Open";
       } catch {
         washerBtn.className = "floor-btn idle";
@@ -170,5 +190,3 @@
   </script>
 </body>
 </html>
-
-
