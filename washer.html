@@ -165,100 +165,72 @@
   </main>
 
   <script>
-    const API_URL = "https://rls-uvzg.onrender.com/api/state";
+  const API_URL = "https://rls-uvzg.onrender.com/api/state";
 
-    let remainingSeconds = 0;   // local countdown value
-    let lastState = "Idle";
+  let remainingSeconds = null;
+  let lastState = null;
 
-    function parseTime(t) {
-        if (!t || t === "00:00") return 0;
-        const [mm, ss] = t.split(":").map(Number);
-        return mm * 60 + ss;
+  function parseTime(t) {
+    const [m, s] = t.split(":");
+    return (parseInt(m) * 60) + parseInt(s);
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, "0");
+    const s = Math.floor(sec % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  }
+
+  // ---- COUNTDOWN LOOP ----
+  setInterval(() => {
+    if (remainingSeconds !== null && lastState === "Running") {
+      remainingSeconds--;
+      if (remainingSeconds < 0) remainingSeconds = 0;
+      document.getElementById("cycleTimer").textContent =
+        formatTime(remainingSeconds);
     }
+  }, 1000);
 
-    function formatTime(sec) {
-        if (sec < 0) sec = 0;
-        const mm = String(Math.floor(sec / 60)).padStart(2, "0");
-        const ss = String(sec % 60).padStart(2, "0");
-        return `${mm}:${ss}`;
+  // ---- SERVER POLL ----
+  async function updateWasher() {
+    try {
+      const res = await fetch(API_URL, { cache: "no-store" });
+      const data = await res.json();
+
+      const state = data.state || "Idle";
+      const time = data.time || "00:00";
+
+      // Update other UI elements normally
+      document.getElementById("machineState").textContent = state;
+      document.getElementById("rfidStatus").textContent = data.rfid || "None";
+      document.getElementById("expected").textContent = data.expected || 0;
+      document.getElementById("lockUID").textContent = data.lock_uid || "None";
+
+      // ---- TIMER LOGIC FIX ----
+      const serverSec = parseTime(time);
+
+      if (state !== lastState) {
+        // State changed → trust the server completely
+        remainingSeconds = serverSec;
+        document.getElementById("cycleTimer").textContent = formatTime(serverSec);
+      }
+
+      // If difference > 3 seconds → drift correction
+      if (Math.abs(serverSec - remainingSeconds) > 3) {
+        remainingSeconds = serverSec;
+      }
+
+      lastState = state;
+
+    } catch (err) {
+      console.error(err);
     }
+  }
 
-    async function fetchState() {
-        try {
-            const res = await fetch(API_URL, { cache: "no-store" });
-            const data = await res.json();
-
-            const state = data.state || "Idle";
-            const timeStr = data.time || "00:00";
-            const lock_uid = data.lock_uid || null;
-            const rfid = data.rfid || "None";
-            const expected = data.expected || 0;
-
-            // Update static fields
-            document.getElementById("rfidStatus").textContent = rfid;
-            document.getElementById("machineState").textContent = state;
-            document.getElementById("expected").textContent = expected;
-            document.getElementById("lockUID").textContent = lock_uid || "None";
-
-            const bigStatus = document.getElementById("machineStateText");
-            const warning = document.getElementById("warningBox");
-
-            warning.style.display = "none";
-            warning.className = "";
-
-            // ---- Update UI text but not timer countdown ----
-            if (state === "Running") {
-                bigStatus.textContent = `Running (${timeStr})`;
-                bigStatus.className = "status-big state-running";
-            } else if (state === "Complete") {
-                bigStatus.textContent = "Cycle Complete — Scan Out Required";
-                bigStatus.className = "status-big state-complete";
-                warning.textContent = "The machine finished. The previous user must scan out.";
-                warning.classList.add("complete");
-                warning.style.display = "block";
-            } else if (state === "Aborted") {
-                bigStatus.textContent = "Aborted — Scan Out Required";
-                bigStatus.className = "status-big state-aborted";
-                warning.textContent = "No movement detected. Laundry cycle aborted.";
-                warning.classList.add("aborted");
-                warning.style.display = "block";
-            } else if (state === "Locked") {
-                bigStatus.textContent = "Locked — Waiting for Previous User";
-                bigStatus.className = "status-big state-locked";
-                warning.textContent = lock_uid ?
-                    `Machine Locked by UID ${lock_uid}. Scan-out or Override Required.` :
-                    "Machine Locked.";
-                warning.classList.add("locked");
-                warning.style.display = "block";
-            } else {
-                bigStatus.textContent = "Idle — Machine Ready";
-                bigStatus.className = "status-big state-idle";
-            }
-
-            // ---- Sync timer only when running ----
-            if (state === "Running") {
-                remainingSeconds = parseTime(timeStr);
-            }
-
-            lastState = state;
-        } catch (err) {
-            console.error("Fetch error:", err);
-        }
-    }
-
-    // Smooth local countdown timer
-    setInterval(() => {
-        if (lastState === "Running" && remainingSeconds > 0) {
-            remainingSeconds--;
-            document.getElementById("cycleTimer").textContent = formatTime(remainingSeconds);
-        }
-    }, 1000);
-
-    // Poll server every 3s for corrected time
-    setInterval(fetchState, 3000);
-
-    fetchState();
+  updateWasher();
+  setInterval(updateWasher, 1000); // 1s updates without breaking countdown
 </script>
 </body>
 </html>
+
 
