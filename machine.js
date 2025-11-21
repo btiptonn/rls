@@ -12,7 +12,7 @@
   // ---- CONFIG: ADJUST TO YOUR BACKEND ----
   // Example: https://rls-uvzg.onrender.com/api/machines/washer-1
   const API_BASE   = "https://rls-uvzg.onrender.com";
-  const MACHINE_ID = "washer-1"; // change if needed
+  const MACHINE_ID = "pico-w-laundry-01"; // change if needed
   const POLL_MS    = 3000;       // how often we poll server
   const DRIFT_MAX  = 4;          // seconds of allowed drift before snap-to-server
 
@@ -121,3 +121,4 @@
   // Initial paint
   updateDisplay();
 })();
+
