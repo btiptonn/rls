@@ -1,4 +1,4 @@
-// js/machine.js — production version with smooth countdown + API polling
+// js/machine.js — smooth countdown + gentle sync with backend
 (function () {
   // ---- DOM ELEMENTS ----
   const rfidEl       = document.getElementById("rfidStatus");
@@ -9,27 +9,26 @@
   const expectedEl   = document.getElementById("expected");
   const logUl        = document.getElementById("eventLog");
 
-  // ---- CONFIG: ADJUST TO YOUR BACKEND ----
-  // Example: https://rls-uvzg.onrender.com/api/machines/washer-1
+  // ---- CONFIG ----
   const API_BASE   = "https://rls-uvzg.onrender.com";
-  const MACHINE_ID = "pico-w-laundry-01"; // change if needed
-  const POLL_MS    = 3000;       // how often we poll server
-  const DRIFT_MAX  = 4;          // seconds of allowed drift before snap-to-server
+  const MACHINE_ID = "pico-w-laundry-01";   // <-- your real device_id
+  const POLL_MS    = 3000;                  // poll server every 3s
+  const CORRECTION_THRESHOLD = 15;          // only snap if > 15s off
 
   // ---- LOCAL STATE ----
   let state = "Idle";
-  let remainingSeconds = 0;   // time left in the cycle
-  let negativeSeconds  = 0;   // overtime after complete
-  let expectedMinutes  = 0;   // expected total time (for display)
+  let remainingSeconds = 0;
+  let negativeSeconds  = 0;
+  let expectedMinutes  = 0;
   let rfid             = "None";
-  let lastServerState  = null;
-  let lastServerRemaining = null;
 
+  let lastServerState  = null;
+
+  // ---- HELPERS ----
   function setLed(color) {
     rgbLedEl.className = `rgb-led ${color}`;
   }
 
-  // ---- DISPLAY UPDATE ----
   function updateDisplay() {
     machineEl.textContent = state;
     rfidEl.textContent = rfid || "None";
@@ -49,7 +48,6 @@
     else setLed("off");
   }
 
-  // ---- EVENT LOGGING (ONLY WHEN STATE CHANGES) ----
   function logEvent(msg) {
     if (!logUl) return;
     const li = document.createElement("li");
@@ -57,7 +55,7 @@
     logUl.insertBefore(li, logUl.firstChild);
   }
 
-  // ---- LOCAL TICK (SMOOTH UI) ----
+  // ---- 1-SECOND LOCAL TICK (UI ONLY) ----
   setInterval(() => {
     if (state === "Running" && remainingSeconds > 0) {
       remainingSeconds -= 1;
@@ -67,31 +65,47 @@
     updateDisplay();
   }, 1000);
 
-  // ---- APPLY SERVER STATUS WITH DRIFT CORRECTION ----
+  // ---- APPLY SERVER SNAPSHOT (EVERY 3s) ----
   function applyServerStatus(data) {
-    const serverState = data.state || "Idle";
+    // These keys should match what your Pico POSTs
+    const serverState     = data.state || "Idle";
     const serverRemaining = Number(data.remaining_seconds ?? 0);
-    const serverNegative = Number(data.overtime_seconds ?? 0);
-    const serverRFID = data.rfid || "None";
-    const serverExpectedMin = Math.ceil(serverRemaining / 60);
+    const serverNegative  = Number(data.overtime_seconds ?? 0);
+    const serverRFID      = data.rfid || "None";
 
-    // ---- compute how old the data is ----
-    const lastUpdate = new Date(data.last_update).getTime();
-    const now = Date.now();
-    const ageSeconds = Math.floor((now - lastUpdate) / 1000);
+    // Log state changes
+    if (serverState !== lastServerState) {
+      logEvent(`state: ${serverState}, RFID: ${serverRFID}`);
+      lastServerState = serverState;
+    }
 
-    // ---- adjust remaining time using timestamp ----
-    const adjustedRemaining = serverRemaining - ageSeconds;
+    // --- SMART SYNC LOGIC ---
+    if (serverState === "Running") {
+      if (state !== "Running") {
+        // just entered Running → trust server completely
+        remainingSeconds = serverRemaining;
+      } else {
+        // already running → only correct if way off
+        const diff = Math.abs(serverRemaining - remainingSeconds);
+        if (diff > CORRECTION_THRESHOLD) {
+          remainingSeconds = serverRemaining;
+        }
+        // if diff is small (like 3–4s), ignore it so UI stays smooth
+      }
+    } else {
+      // not running (Idle / Aborted / Complete) → always trust server
+      remainingSeconds = serverRemaining;
+    }
 
-    // ---- apply correction ----
-    remainingSeconds = adjustedRemaining;
-    negativeSeconds = serverNegative;
-    expectedMinutes = serverExpectedMin;
+    // update other fields
     state = serverState;
+    negativeSeconds = serverNegative;
+    expectedMinutes = Math.ceil(serverRemaining / 60);
     rfid = serverRFID;
 
     updateDisplay();
-}
+  }
+
   // ---- POLL BACKEND ----
   async function pollStatus() {
     try {
@@ -109,12 +123,8 @@
     }
   }
 
-  // Start polling
+  // start everything
+  updateDisplay();
   pollStatus();
   setInterval(pollStatus, POLL_MS);
-
-  // Initial paint
-  updateDisplay();
 })();
-
-
