@@ -20,7 +20,7 @@ machine = {
     "log": []
 }
 
-HEARTBEAT_TIMEOUT = 5        # seconds before auto-idle
+HEARTBEAT_TIMEOUT = 20       # seconds before auto-idle
 MAX_LOG = 50
 
 # -------------------------------------
