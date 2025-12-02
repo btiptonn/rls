@@ -1,94 +1,84 @@
-// machine.js — Correct client for /api/state
+// machine.js — smooth countdown using last_update drift correction
 (function () {
 
   const API_BASE = "https://rls-uvzg.onrender.com";
-  const POLL_MS = 1000; // check server every second
+  const POLL_MS = 2000; // poll server every 2s
 
   // DOM
-  const stateEl = document.getElementById("machineState");
-  const rfidEl = document.getElementById("rfidStatus");
-  const timeEl = document.getElementById("cycleTimer");
+  const stateEl    = document.getElementById("machineState");
+  const rfidEl     = document.getElementById("rfidStatus");
+  const timeEl     = document.getElementById("cycleTimer");
   const expectedEl = document.getElementById("expected");
-  const negEl = document.getElementById("negTimer");
-  const logUl = document.getElementById("eventLog");
-  const rgbEl = document.getElementById("rgbLed");
+  const negEl      = document.getElementById("negTimer");
+  const rgbEl      = document.getElementById("rgbLed");
+  const logUl      = document.getElementById("eventLog");
 
   let lastData = null;
   let lastState = null;
 
-  // LED helper
   function setLed(color) {
     rgbEl.className = `rgb-led ${color}`;
   }
 
-  // Render function
   function render() {
     if (!lastData) return;
 
-    const serverState = lastData.state;
-    const rfid = lastData.rfid || "None";
-    const expected = lastData.expected;
-    const timeStr = lastData.time; // "MM:SS"
-    const lastUpdate = lastData.last_update;
+    const sState = lastData.state;
+    const sRFID  = lastData.rfid || "None";
+    const sExp   = lastData.expected;
+    const sTime  = lastData.time;    // "MM:SS"
+    const sLU    = lastData.last_update;
 
-    // parse "MM:SS" -> seconds
-    let [m, s] = timeStr.split(":").map(Number);
-    let serverSeconds = m * 60 + s;
+    // parse "MM:SS"
+    let [m, s] = sTime.split(":").map(Number);
+    let serverRemaining = (m * 60) + s;
 
-    // compute age
-    let age = 0;
-    if (lastUpdate) {
-      const last = new Date(lastUpdate).getTime();
-      age = Math.floor((Date.now() - last) / 1000);
-    }
-
-    let adjusted = serverSeconds - age;
+    // compute age of snapshot
+    const age = Math.floor((Date.now() - new Date(sLU).getTime()) / 1000);
+    let adjusted = serverRemaining - age;
     if (adjusted < 0) adjusted = 0;
 
-    // format display
-    const mm = Math.floor(adjusted / 60);
-    const ss = String(adjusted % 60).padStart(2, "0");
-    const display = `${mm}:${ss}`;
+    // Show negative timer only if complete
+    const neg = (sState === "Complete") ? age : 0;
 
-    // state change log
-    if (serverState !== lastState) {
+    // Log state changes
+    if (sState !== lastState) {
       if (logUl) {
         const li = document.createElement("li");
-        li.textContent = `[${new Date().toLocaleTimeString()}] ${serverState} — RFID: ${rfid}`;
+        li.textContent = `[${new Date().toLocaleTimeString()}] ${sState} — RFID: ${sRFID}`;
         logUl.insertBefore(li, logUl.firstChild);
       }
-      lastState = serverState;
+      lastState = sState;
     }
 
     // Update DOM
-    stateEl.textContent = serverState;
-    rfidEl.textContent = rfid;
-    expectedEl.textContent = expected;
-    timeEl.textContent = display;
-    negEl.textContent = (serverState === "Complete") ? age : 0;
+    stateEl.textContent = sState;
+    rfidEl.textContent = sRFID;
+    expectedEl.textContent = sExp;
+    negEl.textContent = neg;
 
-    if (serverState === "Idle") setLed("off");
-    else if (serverState === "Running") setLed("green");
-    else if (serverState === "Aborted") setLed("red");
-    else if (serverState === "Complete") setLed("yellow");
+    const mm = Math.floor(adjusted / 60);
+    const ss = String(adjusted % 60).padStart(2, "0");
+    timeEl.textContent = `${mm}:${ss}`;
+
+    if (sState === "Idle") setLed("off");
+    else if (sState === "Running") setLed("green");
+    else if (sState === "Aborted") setLed("red");
+    else if (sState === "Complete") setLed("yellow");
   }
 
-  // Poll backend
   async function poll() {
     try {
       const res = await fetch(`${API_BASE}/api/state`, { cache: "no-store" });
-      if (!res.ok) {
-        console.log("Server state error:", res.status);
-        return;
-      }
+      if (!res.ok) return;
       lastData = await res.json();
       render();
-    } catch (e) {
-      console.log("Poll error:", e);
+    } catch (err) {
+      console.error("poll error:", err);
     }
   }
 
-  // Start polling
+  // Poll every 2 sec
   poll();
   setInterval(poll, POLL_MS);
 
