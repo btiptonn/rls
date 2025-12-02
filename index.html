@@ -1,204 +1,312 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Residential Laundry System — Building</title>
+  <meta charset="UTF-8" />
+  <title>Residential Laundry System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root {
-      --accent: #2a6fb5;
-      --accent-light: #4a8de0;
-      --bg: #eef3fa;
-      --card-bg: rgba(255,255,255,0.85);
-      --text: #1a1a1a;
-    }
-
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
       margin: 0;
-      background: var(--bg);
-      background-image: linear-gradient(180deg, #f2f6fc 0%, #dbe7f8 100%);
-      color: var(--text);
+      padding: 0;
       display: flex;
-      flex-direction: column;
-      min-height: 100vh;
+      justify-content: center;
     }
-
-    header {
-      background: var(--accent);
-      color: #fff;
-      text-align: center;
-      padding: 1.2rem 0;
-      font-size: 1.5rem;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    .container {
+      max-width: 600px;
+      width: 100%;
+      padding: 24px;
     }
-
-    main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      padding: 2rem 1rem;
-      gap: 2rem;
-    }
-
-    .card {
-      background: var(--card-bg);
-      backdrop-filter: blur(10px);
-      border-radius: 14px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-      padding: 2rem;
-      width: 340px;
-      text-align: center;
-    }
-
-    .floor-btn {
-      display: inline-block;
-      padding: 14px 18px;
-      border-radius: 10px;
-      color: #fff;
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .running  { background: #30b82e; }   /* Green */
-    .aborted  { background: #e24b4b; }   /* Red */
-    .complete { background: #408ef5; }   /* Blue */
-    .idle     { background: #d0d0d0; }   /* White/Gray */
-    .locked   { background: #ff8800; }   /* Orange */
-
-    .legend, .guide {
-      width: 340px;
-      background: var(--card-bg);
-      padding: 1.5rem;
-      border-radius: 14px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-      font-size: 0.95rem;
-    }
-
-    .legend h3, .guide h2 {
+    h1 {
       margin-top: 0;
-      text-align: center;
+      margin-bottom: 8px;
     }
-
-    .legend-item {
+    .card {
+      background: #111827;
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    }
+    .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    .value {
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .row {
       display: flex;
+      gap: 12px;
       align-items: center;
-      margin: 6px 0;
+      margin-top: 8px;
     }
-
-    .color-box {
-      width: 20px;
-      height: 20px;
-      border-radius: 5px;
-      margin-right: 10px;
-      border: 1px solid #999;
+    input, select, button {
+      font: inherit;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      padding: 8px 12px;
+      outline: none;
     }
-
-    footer {
-      text-align: center;
-      padding: 1rem;
-      font-size: 0.85rem;
-      color: #666;
+    input:focus, select:focus {
+      border-color: #38bdf8;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      background: #38bdf8;
+      color: #020617;
+      font-weight: 600;
+      transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.1s ease;
+    }
+    button:hover {
+      background: #0ea5e9;
+      box-shadow: 0 8px 20px rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+    .button-secondary {
+      background: #4b5563;
+      color: #e5e7eb;
+    }
+    .button-secondary:hover {
+      background: #6b7280;
+      box-shadow: 0 8px 20px rgba(107, 114, 128, 0.4);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #111827;
+      color: #9ca3af;
+    }
+    .pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .pill-idle  .pill-dot { background: #9ca3af; }
+    .pill-running .pill-dot { background: #22c55e; }
+    .pill-finished .pill-dot { background: #facc15; }
+    .pill-error .pill-dot { background: #f97316; }
+    .log {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid #111827;
+      color: #9ca3af;
+    }
+    .log-entry strong {
+      color: #e5e7eb;
+    }
+    .small {
+      font-size: 12px;
+      color: #6b7280;
     }
   </style>
 </head>
-
 <body>
-  <header>🏢 Residential Laundry System</header>
+  <div class="container">
+    <h1>Residential Laundry System</h1>
+    <div class="small">Pico W + RFID + Vibration · Live status from backend</div>
 
-  <main>
-
-    <!-- MAIN STATUS CARD -->
+    <!-- STATUS CARD -->
     <div class="card">
-      <div class="status" id="statusText">Checking washer status...</div>
-      <a id="washerBtn" class="floor-btn idle" href="washer.html">
-        Floor 0 — Washer (1)
-      </a>
+      <div class="label">Machine State</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div id="state-pill" class="pill pill-idle">
+          <div class="pill-dot"></div>
+          <span id="state-text">Idle</span>
+        </div>
+        <div style="text-align: right;">
+          <div class="label">Remaining</div>
+          <div class="value" id="timer-text">00:00:00</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <div class="label">RFID User</div>
+          <div class="value" id="rfid-text">—</div>
+        </div>
+        <div>
+          <div class="label">Expected (min)</div>
+          <div class="value" id="expected-text">0</div>
+        </div>
+      </div>
+      <div class="small" id="last-update-text" style="margin-top: 6px;">Last update: —</div>
     </div>
 
-    <!-- USER GUIDE -->
-    <section class="guide">
-      <h2>📘 User Guide</h2>
-      <ul>
-        <li>Scan your RFID tag to unlock or claim the washer.</li>
-        <li>Once the LED turns <strong>green</strong>, select a cycle time using the buttons.</li>
-        <li>The machine automatically detects movement using an internal vibration sensor.</li>
-        <li>If no movement is detected for too long, the washer will <strong>abort</strong> and turn <strong>red</strong>.</li>
-        <li>When the laundry finishes, the LED turns <strong>blue</strong>. The washer enters lock mode.</li>
-        <li>You are asked to scan your RFID again to <strong>scan out</strong> and unlock the machine.</li>
-        <li>If the previous user forgets to scan out, another user can override the lock by holding their RFID on the reader for <strong>3 seconds</strong> until the LED flashes override mode.</li>
-        <li>While locked, the LED stays <strong>orange</strong>.</li>
-        <li>When idle with no activity, the LED stays <strong>white</strong>.</li>
-      </ul>
-    </section>
+    <!-- CONTROLS CARD -->
+    <div class="card">
+      <div class="label">Manual Controls</div>
+      <div class="row">
+        <select id="expected-input">
+          <option value="30">30 min</option>
+          <option value="45" selected>45 min</option>
+          <option value="60">60 min</option>
+          <option value="75">75 min</option>
+          <option value="90">90 min</option>
+        </select>
 
-    <!-- LEGEND -->
-    <section class="legend">
-      <h3>LED / Status Legend</h3>
-
-      <div class="legend-item">
-        <div class="color-box" style="background:#ffffff;"></div>
-        Idle — Machine unused, waiting for a user.
+        <button id="start-btn">Start</button>
+        <button id="stop-btn" class="button-secondary">Stop</button>
       </div>
-
-      <div class="legend-item">
-        <div class="color-box" style="background:#30b82e;"></div>
-        Running — Valid RFID scanned & cycle in progress.
+      <div class="small" style="margin-top: 8px;">
+        Start sets the official timer on the server. Pico just sends heartbeats; timer is never reset by heartbeat.
       </div>
+    </div>
 
-      <div class="legend-item">
-        <div class="color-box" style="background:#408ef5;"></div>
-        Complete — Cycle finished; user must scan out.
-      </div>
-
-      <div class="legend-item">
-        <div class="color-box" style="background:#e24b4b;"></div>
-        Aborted — No movement detected; machine locked.
-      </div>
-
-      <div class="legend-item">
-        <div class="color-box" style="background:#ff8800;"></div>
-        Locked — Waiting for scan-out or 3s override.
-      </div>
-    </section>
-
-  </main>
-
-  <footer>© 2025 RLS System | Status updates every 3s</footer>
+    <!-- LOG CARD -->
+    <div class="card">
+      <div class="label">Recent Events</div>
+      <div class="log" id="log-container"></div>
+    </div>
+  </div>
 
   <script>
-    const API_URL = "https://rls-uvzg.onrender.com/api/state";
+    const statePill = document.getElementById("state-pill");
+    const stateText = document.getElementById("state-text");
+    const timerText = document.getElementById("timer-text");
+    const rfidText = document.getElementById("rfid-text");
+    const expectedText = document.getElementById("expected-text");
+    const lastUpdateText = document.getElementById("last-update-text");
+    const logContainer = document.getElementById("log-container");
 
-    async function updateIndex() {
-      const washerBtn = document.getElementById("washerBtn");
-      const statusText = document.getElementById("statusText");
+    const expectedInput = document.getElementById("expected-input");
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
 
+    function setStatePill(state) {
+      state = state || "Idle";
+      statePill.className = "pill";
+
+      switch (state) {
+        case "Running":
+          statePill.classList.add("pill-running");
+          break;
+        case "Finished":
+          statePill.classList.add("pill-finished");
+          break;
+        case "Error":
+          statePill.classList.add("pill-error");
+          break;
+        default:
+          statePill.classList.add("pill-idle");
+      }
+
+      stateText.textContent = state;
+    }
+
+    function formatSeconds(total) {
+      total = Math.max(0, Math.floor(total));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
+    async function fetchStatus() {
       try {
-        const res = await fetch(API_URL, { cache: "no-store" });
+        const res = await fetch("/api/status");
         const data = await res.json();
-        const state = data.state || "Idle";
 
-        washerBtn.className = `floor-btn ${state.toLowerCase()}`;
-        washerBtn.textContent = `Floor 0 — Washer (1) — ${state}`;
+        setStatePill(data.state);
+        expectedText.textContent = data.expected ?? 0;
+        rfidText.textContent = data.rfid || "—";
 
-        statusText.textContent =
-          state === "Running"  ? `Running (${data.time})` :
-          state === "Locked"   ? "Machine locked — waiting for scan-out or override" :
-          state === "Aborted"  ? "Cycle aborted — scan out required" :
-          state === "Complete" ? "Cycle complete — scan out required" :
-          "Machine Open";
-      } catch {
-        washerBtn.className = "floor-btn idle";
-        washerBtn.textContent = "Washer Offline";
-        statusText.textContent = "Server not reachable.";
+        // prefer remaining_s; fallback to remaining_str
+        if (typeof data.remaining_s === "number") {
+          timerText.textContent = formatSeconds(data.remaining_s);
+        } else if (data.remaining_str) {
+          timerText.textContent = data.remaining_str;
+        } else {
+          timerText.textContent = "00:00:00";
+        }
+
+        if (data.last_update) {
+          lastUpdateText.textContent = "Last update: " + data.last_update;
+        }
+
+        if (Array.isArray(data.log)) {
+          logContainer.innerHTML = "";
+          data.log.forEach(entry => {
+            const div = document.createElement("div");
+            div.className = "log-entry";
+            div.innerHTML = `<strong>[${entry.event}]</strong> ${entry.ts} – ${entry.info || ""}`;
+            logContainer.appendChild(div);
+          });
+        }
+
+      } catch (e) {
+        console.error("Status error", e);
+        setStatePill("Error");
+        timerText.textContent = "—";
+        lastUpdateText.textContent = "Last update: error";
       }
     }
 
-    updateIndex();
-    setInterval(updateIndex, 3000);
-  </script>
+    async function startCycle() {
+      const expected = parseInt(expectedInput.value, 10) || 45;
+      startBtn.disabled = true;
+      try {
+        const res = await fetch("/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expected: expected,
+            rfid: null,      // if you want, you can wire this from a scanned user later
+            lock_uid: null
+          })
+        });
+        const data = await res.json();
+        console.log("start response", data);
+      } catch (e) {
+        console.error("start error", e);
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
 
+    async function stopCycle() {
+      stopBtn.disabled = true;
+      try {
+        const res = await fetch("/api/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+        console.log("stop response", data);
+      } catch (e) {
+        console.error("stop error", e);
+      } finally {
+        stopBtn.disabled = false;
+      }
+    }
+
+    startBtn.addEventListener("click", startCycle);
+    stopBtn.addEventListener("click", stopCycle);
+
+    // Poll every second
+    setInterval(fetchStatus, 1000);
+    fetchStatus();
+  </script>
 </body>
 </html>
