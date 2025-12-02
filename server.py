@@ -11,12 +11,12 @@ CORS(app)
 # GLOBAL WASHER STATE
 # ---------------------------
 washer_state = {
-    "state": "Idle",
+    "state": "Idle",      # Idle, Running, Aborted, Complete
     "rfid": None,
-    "expected": 0,
-    "time": "00:00",
+    "expected": 0,        # minutes
+    "time": "00:00",      # "MM:SS"
     "lock_uid": None,
-    "last_update": None,
+    "last_update": None,  # UTC timestamp for drift correction
     "log": []
 }
 
@@ -25,8 +25,8 @@ MAX_LOG_ENTRIES = 50
 # ---------------------------
 # TEXTBELT SMS SETTINGS
 # ---------------------------
-USER_PHONE = "+1XXXXXXXXXX"      # your number
-TEXTBELT_KEY = "textbelt"        # free key
+USER_PHONE = "+1XXXXXXXXXX"
+TEXTBELT_KEY = "textbelt"
 
 def send_sms(message):
     try:
@@ -55,47 +55,47 @@ def washer_page():
     return send_from_directory(".", "washer.html")
 
 # ---------------------------
-# API — GET STATE
+# API — RETURN FULL MACHINE STATE
 # ---------------------------
 @app.route("/api/state", methods=["GET"])
 def api_state():
-    return jsonify({k: v for k, v in washer_state.items() if k != "log"})
+    # Return everything except the log
+    return jsonify({
+        "state": washer_state["state"],
+        "rfid": washer_state["rfid"],
+        "expected": washer_state["expected"],
+        "time": washer_state["time"],
+        "last_update": washer_state["last_update"]
+    })
 
 # ---------------------------
-# API — GET LOG
+# API — RETURN LOG
 # ---------------------------
 @app.route("/api/log", methods=["GET"])
 def api_log():
     return jsonify(washer_state["log"])
 
 # ---------------------------
-# API — UPDATE STATE
+# API — UPDATE STATE (FROM PICO)
 # ---------------------------
 @app.route("/api/update", methods=["POST"])
 def api_update():
     payload = request.get_json(force=True, silent=True) or {}
     now = datetime.utcnow().isoformat() + "Z"
 
-    # Server expects JSON from Pico here:
-    # {
-    #   "device_id": "...",
-    #   "event": "start/tick/abort/complete",
-    #   "ts_ms": 123456,
-    #   "data": { "uid": "...", "seconds": 30 }
-    # }
-
     event = payload.get("event", "")
     data  = payload.get("data", {})
 
-    # Interpret events:
+    # Handle event types
     if event == "start":
         washer_state["state"] = "Running"
         washer_state["rfid"] = data.get("uid")
-        washer_state["expected"] = int(data.get("seconds", 0) // 60)
-        washer_state["time"] = f"{data.get('seconds',0)//60:02d}:{data.get('seconds',0)%60:02d}"
+        seconds = int(data.get("seconds", 0))
+        washer_state["expected"] = seconds // 60
+        washer_state["time"] = f"{seconds//60:02d}:{seconds%60:02d}"
 
     elif event == "tick":
-        remaining = data.get("remaining_s", 0)
+        remaining = int(data.get("remaining_s", 0))
         washer_state["time"] = f"{remaining//60:02d}:{remaining%60:02d}"
 
     elif event == "abort":
@@ -112,23 +112,19 @@ def api_update():
 
     washer_state["last_update"] = now
 
-    # Log everything
-    log_entry = {
+    washer_state["log"].insert(0, {
         "ts": now,
         "event": event,
         "state": washer_state["state"],
         "rfid": washer_state["rfid"]
-    }
-
-    washer_state["log"].insert(0, log_entry)
+    })
     washer_state["log"] = washer_state["log"][:MAX_LOG_ENTRIES]
 
-    # SMS
     if washer_state["state"] == "Complete":
         send_sms("Your laundry cycle is COMPLETE (Machine 1)")
 
     return jsonify({"ok": True})
-    
+
 # ---------------------------
 # START
 # ---------------------------
