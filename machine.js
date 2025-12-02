@@ -1,90 +1,95 @@
-// js/machine.js — read snapshot + drift-correct using last_update
+// machine.js — Correct client for /api/state
 (function () {
-  // ---- DOM ELEMENTS ----
-  const rfidEl       = document.getElementById("rfidStatus");
-  const machineEl    = document.getElementById("machineState");
-  const rgbLedEl     = document.getElementById("rgbLed");
-  const cycleTimerEl = document.getElementById("cycleTimer");
-  const negTimerEl   = document.getElementById("negTimer");
-  const expectedEl   = document.getElementById("expected");
-  const logUl        = document.getElementById("eventLog");
 
-  // ---- CONFIG ----
-  const API_BASE   = "https://rls-uvzg.onrender.com";
-  const MACHINE_ID = "pico-w-laundry-01";
-  const POLL_MS    = 2000;   // ask server every 2s
+  const API_BASE = "https://rls-uvzg.onrender.com";
+  const POLL_MS = 1000; // check server every second
 
-  let latestData = null;
-  let lastState  = null;
+  // DOM
+  const stateEl = document.getElementById("machineState");
+  const rfidEl = document.getElementById("rfidStatus");
+  const timeEl = document.getElementById("cycleTimer");
+  const expectedEl = document.getElementById("expected");
+  const negEl = document.getElementById("negTimer");
+  const logUl = document.getElementById("eventLog");
+  const rgbEl = document.getElementById("rgbLed");
 
+  let lastData = null;
+  let lastState = null;
+
+  // LED helper
   function setLed(color) {
-    rgbLedEl.className = `rgb-led ${color}`;
+    rgbEl.className = `rgb-led ${color}`;
   }
 
-  function logEvent(msg) {
-    if (!logUl) return;
-    const li = document.createElement("li");
-    li.textContent = `${new Date().toISOString()} ${msg}`;
-    logUl.insertBefore(li, logUl.firstChild);
-  }
-
+  // Render function
   function render() {
-    if (!latestData) return;
+    if (!lastData) return;
 
-    const state       = latestData.state || "Idle";
-    const remServer   = Number(latestData.remaining_seconds ?? 0);
-    const overtime    = Number(latestData.overtime_seconds ?? 0);
-    const rfid        = latestData.rfid || "None";
-    const lastUpdate  = latestData.last_update;
+    const serverState = lastData.state;
+    const rfid = lastData.rfid || "None";
+    const expected = lastData.expected;
+    const timeStr = lastData.time; // "MM:SS"
+    const lastUpdate = lastData.last_update;
 
-    // compute how old the snapshot is
-    let remNow = remServer;
+    // parse "MM:SS" -> seconds
+    let [m, s] = timeStr.split(":").map(Number);
+    let serverSeconds = m * 60 + s;
+
+    // compute age
+    let age = 0;
     if (lastUpdate) {
-      const lastMs = new Date(lastUpdate).getTime();
-      const nowMs  = Date.now();
-      const ageSec = Math.floor((nowMs - lastMs) / 1000);
-      remNow = remServer - ageSec;
-    }
-    if (remNow < 0) remNow = 0;
-
-    if (state !== lastState) {
-      logEvent(`state: ${state}, RFID: ${rfid}`);
-      lastState = state;
+      const last = new Date(lastUpdate).getTime();
+      age = Math.floor((Date.now() - last) / 1000);
     }
 
-    const m = Math.floor(remNow / 60);
-    const s = String(remNow % 60).padStart(2, "0");
-    cycleTimerEl.textContent = `${m}:${s}`;
-    negTimerEl.textContent = overtime;
-    expectedEl.textContent = Math.ceil(remServer / 60);
+    let adjusted = serverSeconds - age;
+    if (adjusted < 0) adjusted = 0;
 
-    machineEl.textContent = state;
+    // format display
+    const mm = Math.floor(adjusted / 60);
+    const ss = String(adjusted % 60).padStart(2, "0");
+    const display = `${mm}:${ss}`;
+
+    // state change log
+    if (serverState !== lastState) {
+      if (logUl) {
+        const li = document.createElement("li");
+        li.textContent = `[${new Date().toLocaleTimeString()}] ${serverState} — RFID: ${rfid}`;
+        logUl.insertBefore(li, logUl.firstChild);
+      }
+      lastState = serverState;
+    }
+
+    // Update DOM
+    stateEl.textContent = serverState;
     rfidEl.textContent = rfid;
+    expectedEl.textContent = expected;
+    timeEl.textContent = display;
+    negEl.textContent = (serverState === "Complete") ? age : 0;
 
-    if (state === "Idle") setLed("off");
-    else if (state === "Running") setLed("green");
-    else if (state === "Aborted") setLed("red");
-    else if (state === "Complete") setLed("yellow");
-    else setLed("off");
+    if (serverState === "Idle") setLed("off");
+    else if (serverState === "Running") setLed("green");
+    else if (serverState === "Aborted") setLed("red");
+    else if (serverState === "Complete") setLed("yellow");
   }
 
-  async function pollStatus() {
+  // Poll backend
+  async function poll() {
     try {
-      const res = await fetch(`${API_BASE}/api/machines/${MACHINE_ID}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`${API_BASE}/api/state`, { cache: "no-store" });
       if (!res.ok) {
-        console.error("Status fetch failed:", res.status);
+        console.log("Server state error:", res.status);
         return;
       }
-      latestData = await res.json();
+      lastData = await res.json();
       render();
-    } catch (err) {
-      console.error("Error polling status:", err);
+    } catch (e) {
+      console.log("Poll error:", e);
     }
   }
 
-  // initial render & start loop
-  pollStatus();
-  setInterval(pollStatus, POLL_MS);
+  // Start polling
+  poll();
+  setInterval(poll, POLL_MS);
+
 })();
