@@ -1,25 +1,52 @@
 # ============================================================
-#   RLS BACKEND — COMPLETE STATE, ABORT LOCK, OVERRIDE, LOG
+#   RESIDENTIAL LAUNDRY SYSTEM — FULL BACKEND
+#   (State Machine + Logging + Auto-Lock + Textbelt SMS)
 # ============================================================
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
+import requests as py_requests   # <-- For Textbelt SMS
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
 # ---------------------------------------------------
+# TEXTBELT CONFIG  (Option B: Hard-coded number)
+# ---------------------------------------------------
+
+TEXTBELT_PHONE = "+15555555555"     # <--- REPLACE WITH YOUR NUMBER
+TEXTBELT_KEY   = "textbelt"         # Free tier = 1 SMS/day
+
+def send_sms(message):
+    try:
+        r = py_requests.post(
+            "https://textbelt.com/text",
+            data={
+                "phone": TEXTBELT_PHONE,
+                "message": message,
+                "key": TEXTBELT_KEY
+            }
+        )
+        print("SMS SENT:", r.text)
+        return True
+    except Exception as e:
+        print("SMS ERROR:", e)
+        return False
+
+
+# ---------------------------------------------------
 # MACHINE STATE
 # ---------------------------------------------------
+
 machine = {
     "state": "Idle",          # Idle, Running, Complete, Aborted, Locked
-    "rfid": None,             # who started the load
-    "expected": 0,            # minutes
-    "remaining_s": 0,         # seconds
+    "rfid": None,
+    "expected": 0,
+    "remaining_s": 0,
     "last_update": None,
     "lock_uid": None,
-    "finished_at": None,      # datetime
+    "finished_at": None,
     "aborted": False,
     "log": []
 }
@@ -52,7 +79,7 @@ def format_time(sec):
 
 
 def tick():
-    """ Timer decrement, abort-to-lock, heartbeat timeout """
+    """ Timer decrement, abort-to-lock, and heartbeat timeout """
     now = datetime.utcnow()
 
     if machine["last_update"] is None:
@@ -61,42 +88,51 @@ def tick():
 
     delta = (now - machine["last_update"]).total_seconds()
 
-    # Running → heartbeat timed out
+    # Running → Heartbeat timeout auto-idle
     if delta > HEARTBEAT_TIMEOUT and machine["state"] == "Running":
         machine["state"] = "Idle"
         machine["rfid"] = None
-        machine["remaining_s"] = 0
         machine["expected"] = 0
+        machine["remaining_s"] = 0
         machine["lock_uid"] = None
         machine["finished_at"] = None
         machine["aborted"] = False
         log_event("auto-idle", f"Timeout {delta:.1f}s")
+
         machine["last_update"] = now
         return
 
-    # Countdown
+    # Countdown while running
     if machine["state"] == "Running":
         machine["remaining_s"] = max(0, int(machine["remaining_s"] - delta))
-        machine["last_update"] = now
 
         if machine["remaining_s"] <= 0:
             machine["state"] = "Complete"
             machine["aborted"] = False
             machine["finished_at"] = now
             log_event("cycle-complete")
-            return
 
-    # Aborted → after grace → Locked
+            # ---- SMS: Cycle Complete ----
+            send_sms("✅ Laundry Update: Your cycle is COMPLETE. Please pick up your laundry.")
+
+        machine["last_update"] = now
+        return
+
+    # Aborted → after 10 min → Locked
     if machine["state"] == "Aborted" and machine["finished_at"]:
         since = (now - machine["finished_at"]).total_seconds()
         if since > ABORT_GRACE_SECONDS:
             machine["state"] = "Locked"
             log_event("auto-lock", "Abort not cleared in 10 minutes")
+
+            # ---- SMS: Auto-lock ----
+            send_sms("⚠️ Laundry Notice: The washer has LOCKED due to no pickup after an aborted cycle.")
+
             machine["last_update"] = now
 
 
 # ---------------------------------------------------
-# API ENDPOINTS FOR UI
+# UI ENDPOINTS
 # ---------------------------------------------------
 
 @app.route("/api/state")
@@ -118,17 +154,17 @@ def api_log():
 
 
 # ---------------------------------------------------
-# PICO API ENDPOINTS
+# PICO ENDPOINTS
 # ---------------------------------------------------
 
-@app.route("/api/status", methods=["GET"])
+@app.route("/api/status")
 def api_status():
     tick()
     return jsonify({
         "state": machine["state"],
         "remaining_s": machine["remaining_s"],
         "rfid": machine["rfid"],
-        "lock_uid": machine["lock_uid"]
+        "lock_uid": machine["lock_uid"],
     })
 
 
@@ -142,14 +178,13 @@ def api_start():
     lock_uid = rfid
 
     if expected <= 0:
-        return jsonify({"ok": False, "error": "expected must be >0"}), 400
+        return jsonify({"ok": False, "error": "expected must be > 0"})
 
     state = machine["state"]
     owner = machine["rfid"]
 
-    # Idle → always start
+    # Idle → Always start
     if state == "Idle":
-        now = datetime.utcnow()
         machine["state"] = "Running"
         machine["rfid"] = rfid
         machine["expected"] = expected
@@ -157,14 +192,14 @@ def api_start():
         machine["lock_uid"] = lock_uid
         machine["finished_at"] = None
         machine["aborted"] = False
-        machine["last_update"] = now
-        log_event("start", f"{rfid}")
+        machine["last_update"] = datetime.utcnow()
+
+        log_event("start", rfid)
         return jsonify({"ok": True, "state": "Running"})
 
-    # Complete → override allowed by different user
+    # Complete → Override allowed
     if state == "Complete":
         if owner and rfid != owner:
-            now = datetime.utcnow()
             machine["state"] = "Running"
             machine["rfid"] = rfid
             machine["expected"] = expected
@@ -172,18 +207,19 @@ def api_start():
             machine["lock_uid"] = lock_uid
             machine["finished_at"] = None
             machine["aborted"] = False
-            machine["last_update"] = now
-            log_event("override-start", f"{rfid}")
+            machine["last_update"] = datetime.utcnow()
+
+            log_event("override-start", rfid)
             return jsonify({"ok": True, "state": "Running"})
-        else:
-            return jsonify({"ok": False, "error": "Owner must scan out"}), 400
 
-    # Aborted / Locked → must scan out
+        return jsonify({"ok": False, "error": "Owner must scan out"})
+
+    # Aborted / Locked → Cannot start
     if state in ("Aborted", "Locked"):
-        return jsonify({"ok": False, "error": "must scan out"}), 400
+        return jsonify({"ok": False, "error": "must scan out"})
 
-    # Running → cannot start
-    return jsonify({"ok": False, "error": f"busy ({state})"}), 400
+    # Running → Busy
+    return jsonify({"ok": False, "error": f"busy ({state})"})
 
 
 @app.route("/api/finish", methods=["POST"])
@@ -191,7 +227,6 @@ def api_finish():
     tick()
     now = datetime.utcnow()
 
-    # If timer > 0 → Aborted
     aborted = machine["remaining_s"] > 0
     machine["remaining_s"] = 0
     machine["finished_at"] = now
@@ -201,9 +236,16 @@ def api_finish():
     if aborted:
         machine["state"] = "Aborted"
         log_event("finish-aborted")
+
+        # ---- SMS: Aborted ----
+        send_sms("🚨 Laundry Alert: Your cycle was ABORTED. Please check the washer.")
+
     else:
         machine["state"] = "Complete"
         log_event("finish-complete")
+
+        # ---- SMS: Complete ----
+        send_sms("✅ Laundry Update: Your cycle is COMPLETE. Please pick up your laundry.")
 
     return jsonify({"ok": True, "state": machine["state"]})
 
@@ -215,17 +257,17 @@ def api_scan_out():
     rfid = data.get("rfid")
 
     if not rfid:
-        return jsonify({"ok": False, "error": "RFID needed"}), 400
+        return jsonify({"ok": False, "error": "RFID needed"})
 
     if machine["state"] not in ("Complete", "Aborted", "Locked"):
-        return jsonify({"ok": False, "error": "nothing to clear"}), 400
+        return jsonify({"ok": False, "error": "nothing to clear"})
 
     owner = machine["rfid"]
     lock_uid = machine["lock_uid"]
 
     if rfid != owner and rfid != lock_uid:
         log_event("scan-out-denied", rfid)
-        return jsonify({"ok": False, "error": "unauthorized"}), 403
+        return jsonify({"ok": False, "error": "unauthorized"})
 
     # Clear → Idle
     machine["state"] = "Idle"
@@ -238,18 +280,20 @@ def api_scan_out():
     machine["last_update"] = datetime.utcnow()
 
     log_event("scan-out-ok", rfid)
+
     return jsonify({"ok": True, "state": "Idle"})
 
 
 @app.route("/api/heartbeat", methods=["POST"])
 def api_heartbeat():
     data = request.get_json(force=True)
-    pico_state = data.get("state")
-    rfid = data.get("rfid")
 
     tick()
 
-    # Sync only safe states
+    pico_state = data.get("state")
+    rfid = data.get("rfid")
+
+    # Only sync safe states
     if pico_state and pico_state not in ("Running",):
         machine["state"] = pico_state
 
