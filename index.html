@@ -4,35 +4,58 @@
 <title>Washer Dashboard</title>
 <style>
 body {
-    background: #111;
-    color: white;
     font-family: Arial;
+    color: white;
+    background: #111;
     text-align: center;
 }
-
 .box {
-    margin-top: 40px;
-    padding: 20px;
     background: #222;
+    padding: 20px;
+    margin: 20px auto;
     border-radius: 10px;
-    width: 320px;
-    margin-left: auto;
-    margin-right: auto;
+    width: 330px;
+}
+.legend div {
+    margin: 5px 0;
 }
 </style>
 <script src="/static/machine.js"></script>
 </head>
+
 <body>
 
 <h1>Washer Dashboard</h1>
+
 <div class="box">
     <p><b>Status:</b> <span id="state">...</span></p>
     <p><b>RFID:</b> <span id="rfid">...</span></p>
     <p><b>Remaining:</b> <span id="time">...</span></p>
 </div>
 
+<h2>LED Legend</h2>
+<div class="box legend">
+    <div>🟢 Green — Running / Washing</div>
+    <div>🔵 Blue — Finished</div>
+    <div>⚪ White — RFID Scan</div>
+    <div>🔴 Red — Error / Abort</div>
+    <div>🟠 Orange — Locked (Button Pressed)</div>
+</div>
+
+<h2>Usage Guide</h2>
+<div class="box">
+    <p>1. Tap RFID card</p>
+    <p>2. Press a button on the Pico:</p>
+    <p>30 / 45 / 60 minutes</p>
+    <p>3. Watch progress here</p>
+    <p>4. Collect laundry when done</p>
+</div>
+
 <h2>Recent Activity</h2>
-<div id="logbox" style="max-width:400px;margin:auto;text-align:left;"></div>
+<div id="logbox" class="box" style="text-align:left;"></div>
+
+<br>
+<a href="/washer" style="color:#4af;">Go to Washer Status Page →</a>
 
 </body>
 </html>
