@@ -1,283 +1,64 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Washer — Machine 1</title>
-
+<title>Washer Control</title>
 <style>
-  :root {
-    --bg: #111417;
-    --card: #1c1f24;
-    --border: #2b2f36;
-    --text: #e8ecf1;
-    --accent: #4ea1ff;
-
-    --danger: #ff5757;
-    --success: #3bcf3b;
-    --complete: #4ea1ff;
-    --locked: #ffae42;
-    --idle: #8895a7;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: "Segoe UI", Arial, sans-serif;
-    margin: 0;
-  }
-
-  header {
-    background: #0d1012;
-    padding: 1rem;
-    color: var(--text);
+body {
+    background: #111;
+    color: white;
+    font-family: Arial;
     text-align: center;
-    position: relative;
-    border-bottom: 1px solid var(--border);
-  }
+}
 
-  a.back {
-    position: absolute;
-    left: 15px;
-    top: 15px;
-    color: var(--accent);
-    text-decoration: none;
-  }
-
-  .container {
-    padding: 1.4rem;
-    max-width: 650px;
-    margin: auto;
-  }
-
-  .card {
-    background: var(--card);
-    padding: 1.4rem;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    margin-bottom: 1.5rem;
-  }
-
-  .status-big {
-    font-size: 1.6rem;
-    margin-bottom: 0.8rem;
-    font-weight: 600;
-  }
-
-  .state-running { color: var(--success); }
-  .state-complete { color: var(--complete); }
-  .state-aborted { color: var(--danger); }
-  .state-locked  { color: var(--locked); }
-  .state-idle    { color: var(--idle); }
-
-  .info-row {
-    margin: 8px 0;
-    font-size: 1.1rem;
-  }
-
-  .timer-box {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: #14171a;
+button {
+    background: #333;
+    border: none;
+    padding: 15px;
+    margin: 10px;
+    color: white;
     border-radius: 10px;
-    font-size: 1.3rem;
-    text-align: center;
-    border-left: 4px solid var(--accent);
-  }
+    width: 120px;
+    font-size: 18px;
+}
 
-  #warningBox {
-    padding: 1rem;
+.button-row {
+    margin-top: 30px;
+}
+
+.box {
+    margin-top: 40px;
+    padding: 20px;
+    background: #222;
     border-radius: 10px;
-    font-weight: 600;
-    display: none;
-    margin-top: 1rem;
-  }
-
-  #warningBox.locked {
-    display: block;
-    background: #3b2b14;
-    border-left: 6px solid var(--locked);
-  }
-  #warningBox.aborted {
-    display: block;
-    background: #361616;
-    border-left: 6px solid var(--danger);
-  }
-  #warningBox.complete {
-    display: block;
-    background: #16304e;
-    border-left: 6px solid var(--complete);
-  }
-
-  #eventLog {
-    list-style: none;
-    padding-left: 0;
-  }
-
-  #eventLog li {
-    padding: 0.3rem 0;
-    border-bottom: 1px solid #333;
-    font-size: 0.95rem;
-  }
+    width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+}
 </style>
+<script src="/static/machine.js"></script>
 </head>
 
 <body>
-<header>
-  <a class="back" href="index.html">← Back</a>
-  Washer — Machine 1
-</header>
 
-<div class="container">
+<h1>Washer Control</h1>
 
-  <div class="card">
-    <div id="machineStateText" class="status-big state-idle">Loading...</div>
-
-    <div class="info-row"><strong>RFID:</strong> <span id="rfidStatus">None</span></div>
-    <div class="info-row"><strong>Machine State:</strong> <span id="machineState">Idle</span></div>
-    <div class="info-row"><strong>Expected:</strong> <span id="expected">0</span> min</div>
-
-    <div id="warningBox"></div>
-
-    <div class="timer-box">
-      Time Remaining:<br>
-      <span id="cycleTimer">00:00</span>
-    </div>
-
-    <div class="info-row">
-      <strong>Lock Owner UID:</strong> <span id="lockUID">None</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Event Log</h3>
-    <ul id="eventLog"></ul>
-  </div>
-
+<div class="box">
+    <p><b>Status:</b> <span id="state">...</span></p>
+    <p><b>RFID:</b> <span id="rfid">...</span></p>
+    <p><b>Remaining:</b> <span id="time">...</span></p>
 </div>
 
-<script>
-  const API_STATE_URL = "https://rls-uvzg.onrender.com/api/state";
-  const API_LOG_URL   = "https://rls-uvzg.onrender.com/api/log";
+<h2>Select Cycle</h2>
 
-  let remainingSeconds = null;
-  let lastState = null;
+<div class="button-row">
+    <button onclick="startCycle(30)">30 min</button>
+    <button onclick="startCycle(45)">45 min</button>
+    <button onclick="startCycle(60)">60 min</button>
+</div>
 
-  function parseTime(t) {
-    const [m, s] = t.split(":");
-    return (parseInt(m) * 60) + parseInt(s);
-  }
+<br>
 
-  function formatTime(sec) {
-    const m = Math.floor(sec / 60).toString().padStart(2, "0");
-    const s = Math.floor(sec % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  }
+<button style="background:#700;" onclick="resetWasher()">RESET</button>
 
-  function setStateHeadline(state) {
-    const el = document.getElementById("machineStateText");
-    el.className = "status-big";
-
-    let cls = "state-idle";
-    let text = "Idle";
-
-    switch (state) {
-      case "Running": cls = "state-running"; text = "Running"; break;
-      case "Complete": cls = "state-complete"; text = "Cycle Complete"; break;
-      case "Aborted": cls = "state-aborted"; text = "Cycle Aborted"; break;
-      case "Locked": cls = "state-locked"; text = "Machine Locked"; break;
-    }
-
-    el.classList.add(cls);
-    el.textContent = text;
-  }
-
-  function setWarningBox(state) {
-    const wb = document.getElementById("warningBox");
-    wb.className = "";
-    wb.style.display = "none";
-    wb.textContent = "";
-
-    if (state === "Locked") {
-      wb.classList.add("locked");
-      wb.textContent = "Machine is locked due to missed pickup.";
-    } else if (state === "Aborted") {
-      wb.classList.add("aborted");
-      wb.textContent = "Cycle aborted. Scan your RFID to unlock.";
-    } else if (state === "Complete") {
-      wb.classList.add("complete");
-      wb.textContent = "Cycle complete! Please scan your RFID.";
-    }
-  }
-
-  // Countdown loop
-  setInterval(() => {
-    if (remainingSeconds !== null && lastState === "Running") {
-      remainingSeconds--;
-      if (remainingSeconds < 0) remainingSeconds = 0;
-      document.getElementById("cycleTimer").textContent = formatTime(remainingSeconds);
-    }
-  }, 1000);
-
-  async function updateWasher() {
-    try {
-      const res = await fetch(API_STATE_URL, { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-
-      const state = data.state || "Idle";
-      const time = data.time || "00:00";
-
-      document.getElementById("machineState").textContent = state;
-      document.getElementById("rfidStatus").textContent = data.rfid || "None";
-      document.getElementById("expected").textContent = data.expected || 0;
-      document.getElementById("lockUID").textContent = data.lock_uid || "None";
-
-      setStateHeadline(state);
-      setWarningBox(state);
-
-      const serverSec = parseTime(time);
-
-      if (state !== lastState) {
-        remainingSeconds = serverSec;
-        document.getElementById("cycleTimer").textContent = formatTime(serverSec);
-      }
-
-      if (remainingSeconds === null || Math.abs(serverSec - remainingSeconds) > 3) {
-        remainingSeconds = serverSec;
-      }
-
-      lastState = state;
-
-    } catch (err) {
-      console.error("updateWasher error:", err);
-    }
-  }
-
-  async function fetchLog() {
-    try {
-      const res = await fetch(API_LOG_URL, { cache: "no-store" });
-      if (!res.ok) return;
-      const log = await res.json();
-      const ul = document.getElementById("eventLog");
-      ul.innerHTML = "";
-
-      log.forEach(entry => {
-        const li = document.createElement("li");
-        li.textContent = `[${entry.ts}] ${entry.event} (state: ${entry.state}, RFID: ${entry.rfid || "None"})`;
-        ul.appendChild(li);
-      });
-    } catch (err) {
-      console.error("fetchLog error:", err);
-    }
-  }
-
-  updateWasher();
-  fetchLog();
-  setInterval(() => {
-    updateWasher();
-    fetchLog();
-  }, 2000);
-</script>
 </body>
 </html>
