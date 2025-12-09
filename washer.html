@@ -1,125 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Washer Status</title>
-
-<style>
-    body {
-        background: #111;
-        color: white;
-        font-family: Arial, sans-serif;
-        text-align: center;
-        padding: 20px;
-    }
-
-    h1 {
-        margin-bottom: 10px;
-    }
-
-    /* Main card */
-    .status-card {
-        background: #222;
-        padding: 25px;
-        margin: 20px auto;
-        border-radius: 12px;
-        width: 340px;
-        box-shadow: 0 0 12px rgba(0,0,0,0.4);
-    }
-
-    /* Big indicator circle */
-    .indicator {
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        margin: 0 auto 15px auto;
-        background: gray;
-        transition: background 0.3s ease;
-    }
-
-    /* Label rows */
-    .row {
-        margin: 10px 0;
-        font-size: 19px;
-    }
-
-    /* LED legend styling */
-    .legend-box {
-        background: #222;
-        padding: 20px;
-        margin: 20px auto;
-        border-radius: 12px;
-        width: 340px;
-        font-size: 16px;
-        line-height: 1.5;
-        box-shadow: 0 0 12px rgba(0,0,0,0.4);
-    }
-
-    .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-</style>
-
-<script src="/static/machine.js"></script>
-<script>
-    /* Custom UI hook: color indicator based on state */
-    function applyIndicatorColor(state) {
-        const circle = document.getElementById("indicator");
-
-        if (!circle) return;
-
-        switch (state) {
-            case "Running":
-                circle.style.background = "green";
-                break;
-            case "Finished":
-                circle.style.background = "dodgerblue";
-                break;
-            case "Idle":
-                circle.style.background = "gray";
-                break;
-            default:
-                circle.style.background = "red";  // error fallback
+    <title>Washer Status</title>
+    <script src="machine.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef1f5;
+            padding: 20px;
         }
-    }
-
-    /* Override updateUI to add indicator behavior */
-    const _originalUpdateUI = updateUI;
-
-    updateUI = function () {
-        _originalUpdateUI();
-        applyIndicatorColor(cache.state);
-    };
-</script>
-
+        .card {
+            margin: auto;
+            background: white;
+            width: 400px;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .value {
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+        .label {
+            font-size: 16px;
+            color: gray;
+        }
+    </style>
 </head>
 
 <body>
 
-<h1>Washer Status</h1>
+    <div class="card">
+        <h1>Washer Status</h1>
 
-<div class="status-card">
-    <!-- Big colored status indicator -->
-    <div id="indicator" class="indicator"></div>
+        <div class="label">State</div>
+        <div id="state" class="value">Loading...</div>
 
-    <!-- Status Text -->
-    <div class="row"><b>Status:</b> <span id="state">...</span></div>
-    <div class="row"><b>RFID:</b> <span id="rfid">...</span></div>
-    <div class="row"><b>Remaining Time:</b> <span id="time">...</span></div>
-</div>
+        <div class="label">Time Remaining</div>
+        <div id="remaining" class="value">--</div>
 
-<h2>LED Legend</h2>
-<div class="legend-box">
-    <div class="legend-item">🟢 Green — Running / Washing</div>
-    <div class="legend-item">🔵 Blue — Finished</div>
-    <div class="legend-item">⚪ White — RFID Scan</div>
-    <div class="legend-item">🔴 Red — Error / Abort</div>
-    <div class="legend-item">🟠 Orange — Locked (Button Pressed)</div>
-</div>
+        <div class="label">RFID Used</div>
+        <div id="rfid" class="value">--</div>
+    </div>
 
-<br>
-<a href="/" style="color:#4af; font-size:18px;">← Back to Dashboard</a>
+    <script>
+        async function loadStatus() {
+            let data = await getMachine();
+            if (!data) return;
+
+            document.getElementById("state").innerText = data.state;
+            document.getElementById("remaining").innerText = 
+                data.remaining + " sec";
+
+            document.getElementById("rfid").innerText =
+                data.rfid ? data.rfid : "None";
+        }
+
+        loadStatus();
+        setInterval(loadStatus, 3000);
+    </script>
 
 </body>
 </html>
