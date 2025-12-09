@@ -2,48 +2,124 @@
 <html>
 <head>
 <title>Washer Status</title>
+
 <style>
-body {
-    background: #111;
-    color: white;
-    font-family: Arial;
-    text-align: center;
-}
-.box {
-    background: #222;
-    padding: 20px;
-    margin: 20px auto;
-    border-radius: 10px;
-    width: 330px;
-}
-.legend div {
-    margin: 5px 0;
-}
+    body {
+        background: #111;
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+    }
+
+    h1 {
+        margin-bottom: 10px;
+    }
+
+    /* Main card */
+    .status-card {
+        background: #222;
+        padding: 25px;
+        margin: 20px auto;
+        border-radius: 12px;
+        width: 340px;
+        box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    }
+
+    /* Big indicator circle */
+    .indicator {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        margin: 0 auto 15px auto;
+        background: gray;
+        transition: background 0.3s ease;
+    }
+
+    /* Label rows */
+    .row {
+        margin: 10px 0;
+        font-size: 19px;
+    }
+
+    /* LED legend styling */
+    .legend-box {
+        background: #222;
+        padding: 20px;
+        margin: 20px auto;
+        border-radius: 12px;
+        width: 340px;
+        font-size: 16px;
+        line-height: 1.5;
+        box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 </style>
+
 <script src="/static/machine.js"></script>
+<script>
+    /* Custom UI hook: color indicator based on state */
+    function applyIndicatorColor(state) {
+        const circle = document.getElementById("indicator");
+
+        if (!circle) return;
+
+        switch (state) {
+            case "Running":
+                circle.style.background = "green";
+                break;
+            case "Finished":
+                circle.style.background = "dodgerblue";
+                break;
+            case "Idle":
+                circle.style.background = "gray";
+                break;
+            default:
+                circle.style.background = "red";  // error fallback
+        }
+    }
+
+    /* Override updateUI to add indicator behavior */
+    const _originalUpdateUI = updateUI;
+
+    updateUI = function () {
+        _originalUpdateUI();
+        applyIndicatorColor(cache.state);
+    };
+</script>
+
 </head>
 
 <body>
 
 <h1>Washer Status</h1>
 
-<div class="box">
-    <p><b>Status:</b> <span id="state">...</span></p>
-    <p><b>RFID:</b> <span id="rfid">...</span></p>
-    <p><b>Remaining:</b> <span id="time">...</span></p>
+<div class="status-card">
+    <!-- Big colored status indicator -->
+    <div id="indicator" class="indicator"></div>
+
+    <!-- Status Text -->
+    <div class="row"><b>Status:</b> <span id="state">...</span></div>
+    <div class="row"><b>RFID:</b> <span id="rfid">...</span></div>
+    <div class="row"><b>Remaining Time:</b> <span id="time">...</span></div>
 </div>
 
 <h2>LED Legend</h2>
-<div class="box legend">
-    <div>🟢 Green — Running / Washing</div>
-    <div>🔵 Blue — Finished</div>
-    <div>⚪ White — RFID Scan</div>
-    <div>🔴 Red — Error / Abort</div>
-    <div>🟠 Orange — Locked (Button Pressed)</div>
+<div class="legend-box">
+    <div class="legend-item">🟢 Green — Running / Washing</div>
+    <div class="legend-item">🔵 Blue — Finished</div>
+    <div class="legend-item">⚪ White — RFID Scan</div>
+    <div class="legend-item">🔴 Red — Error / Abort</div>
+    <div class="legend-item">🟠 Orange — Locked (Button Pressed)</div>
 </div>
 
 <br>
-<a href="/" style="color:#4af;">← Back to Dashboard</a>
+<a href="/" style="color:#4af; font-size:18px;">← Back to Dashboard</a>
 
 </body>
 </html>
