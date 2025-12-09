@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Washer Control</title>
+<title>Washer Status</title>
 <style>
 body {
     background: #111;
@@ -9,30 +9,15 @@ body {
     font-family: Arial;
     text-align: center;
 }
-
-button {
-    background: #333;
-    border: none;
-    padding: 15px;
-    margin: 10px;
-    color: white;
-    border-radius: 10px;
-    width: 120px;
-    font-size: 18px;
-}
-
-.button-row {
-    margin-top: 30px;
-}
-
 .box {
-    margin-top: 40px;
-    padding: 20px;
     background: #222;
+    padding: 20px;
+    margin: 20px auto;
     border-radius: 10px;
-    width: 320px;
-    margin-left: auto;
-    margin-right: auto;
+    width: 330px;
+}
+.legend div {
+    margin: 5px 0;
 }
 </style>
 <script src="/static/machine.js"></script>
@@ -40,7 +25,7 @@ button {
 
 <body>
 
-<h1>Washer Control</h1>
+<h1>Washer Status</h1>
 
 <div class="box">
     <p><b>Status:</b> <span id="state">...</span></p>
@@ -48,17 +33,17 @@ button {
     <p><b>Remaining:</b> <span id="time">...</span></p>
 </div>
 
-<h2>Select Cycle</h2>
-
-<div class="button-row">
-    <button onclick="startCycle(30)">30 min</button>
-    <button onclick="startCycle(45)">45 min</button>
-    <button onclick="startCycle(60)">60 min</button>
+<h2>LED Legend</h2>
+<div class="box legend">
+    <div>🟢 Green — Running / Washing</div>
+    <div>🔵 Blue — Finished</div>
+    <div>⚪ White — RFID Scan</div>
+    <div>🔴 Red — Error / Abort</div>
+    <div>🟠 Orange — Locked (Button Pressed)</div>
 </div>
 
 <br>
-
-<button style="background:#700;" onclick="resetWasher()">RESET</button>
+<a href="/" style="color:#4af;">← Back to Dashboard</a>
 
 </body>
 </html>
