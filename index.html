@@ -1,54 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Washer Dashboard</title>
-<style>
-body {
-    font-family: Arial;
-    color: white;
-    background: #111;
-    text-align: center;
-}
-.box {
-    background: #222;
-    padding: 20px;
-    margin: 20px auto;
-    border-radius: 10px;
-    width: 330px;
-}
-.legend div {
-    margin: 5px 0;
-}
-</style>
-<script src="/static/machine.js"></script>
+    <title>Residential Laundry System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .legend-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn-big {
+            display: block;
+            width: 100%;
+            padding: 20px;
+            font-size: 24px;
+            background: #005eff;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .btn-big:hover {
+            background: #0043c9;
+        }
+    </style>
 </head>
-
 <body>
 
-<h1>Washer Dashboard</h1>
+    <h1>Residential Laundry System</h1>
 
-<h2>LED Legend</h2>
-<div class="box legend">
-    <div>🟢 Green — Running / Washing</div>
-    <div>🔵 Blue — Finished</div>
-    <div>⚪ White — RFID Scan</div>
-    <div>🔴 Red — Error / Abort</div>
-    <div>🟠 Orange — Locked (Button Pressed)</div>
-</div>
+    <div class="section">
+        <h2>RGB LED Legend</h2>
 
-<h2>Usage Guide</h2>
-<div class="box">
-    <p>1. Tap RFID card</p>
-    <p>2. Press one of the Pico buttons:</p>
-    <p>30 / 45 / 60 minutes</p>
-    <p>3. View washer status on the status page</p>
-</div>
+        <div class="legend-row">
+            <div><span class="color-box" style="background:red"></span> Error / Abort</div>
+            <div><span class="color-box" style="background:green"></span> Washing / Running</div>
+        </div>
 
-<h2>Recent Activity</h2>
-<div id="logbox" class="box" style="text-align:left;"></div>
+        <div class="legend-row">
+            <div><span class="color-box" style="background:blue"></span> Scan RFID</div>
+            <div><span class="color-box" style="background:white; border:1px solid #ccc;"></span> Idle</div>
+        </div>
 
-<br>
-<a href="/washer" style="color:#4af;">Go to Washer Status Page →</a>
+        <div class="legend-row">
+            <div><span class="color-box" style="background:orange"></span> Locked</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>How to Use</h2>
+        <p>1. Press the **START** button on the washer Pico.</p>
+        <p>2. The LED will turn **blue** → scan your RFID card.</p>
+        <p>3. When accepted, LED turns **yellow** and sends data.</p>
+        <p>4. During washing, LED stays **green**.</p>
+        <p>5. When finished, LED returns to **white**.</p>
+        <p>6. Press the **RESET** button if you need to stop early.</p>
+        <p><b>Note:</b> This website lets the owner monitor who used the washer.</p>
+    </div>
+
+    <button class="btn-big" onclick="location.href='washer.html'">
+        Washer Status
+    </button>
 
 </body>
 </html>
