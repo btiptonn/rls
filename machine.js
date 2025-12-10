@@ -1,12 +1,5 @@
-const API = "https://rls-uvzg.onrender.com";
+// machine.js — legacy preview simulator (SAFE VERSION)
 
-async function getMachine() {
-    try {
-        let r = await fetch(API + "/machine/get");
-        return await r.json();
-    } catch (e) {
-        console.log("Fetch error:", e);
-        return null;
-    }
-}
-
+(function () {
+  console.log("machine.js loaded (preview mode)");
+})();
