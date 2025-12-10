@@ -4,62 +4,48 @@
     <title>Washer Status</title>
     <script src="machine.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #eef1f5;
-            padding: 20px;
-        }
+        body { font-family: Arial; background: #eef1f5; padding: 20px; }
         .card {
-            margin: auto;
+            width: 380px;
             background: white;
-            width: 400px;
             padding: 25px;
+            margin: auto;
             border-radius: 12px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
             text-align: center;
+            box-shadow: 0 0 10px #0003;
         }
-        .value {
-            font-size: 28px;
-            margin-bottom: 15px;
-        }
-        .label {
-            font-size: 16px;
-            color: gray;
-        }
+        .value { font-size: 26px; margin-bottom: 10px; }
+        .label { font-size: 14px; color: gray; }
     </style>
 </head>
-
 <body>
 
-    <div class="card">
-        <h1>Washer Status</h1>
+<div class="card">
+    <h1>Washer Status</h1>
 
-        <div class="label">State</div>
-        <div id="state" class="value">Loading...</div>
+    <div class="label">State</div>
+    <div id="state" class="value">Loading...</div>
 
-        <div class="label">Time Remaining</div>
-        <div id="remaining" class="value">--</div>
+    <div class="label">Time Remaining</div>
+    <div id="remaining" class="value">-- sec</div>
 
-        <div class="label">RFID Used</div>
-        <div id="rfid" class="value">--</div>
-    </div>
+    <div class="label">RFID</div>
+    <div id="rfid" class="value">--</div>
+</div>
 
-    <script>
-        async function loadStatus() {
-            let data = await getMachine();
-            if (!data) return;
+<script>
+    async function update() {
+        let m = await getMachine();
+        if (!m) return;
 
-            document.getElementById("state").innerText = data.state;
-            document.getElementById("remaining").innerText = 
-                data.remaining + " sec";
+        document.getElementById("state").innerText = m.state;
+        document.getElementById("remaining").innerText = m.remaining + " sec";
+        document.getElementById("rfid").innerText = m.rfid ?? "None";
+    }
 
-            document.getElementById("rfid").innerText =
-                data.rfid ? data.rfid : "None";
-        }
-
-        loadStatus();
-        setInterval(loadStatus, 3000);
-    </script>
+    update();
+    setInterval(update, 3000);
+</script>
 
 </body>
 </html>
