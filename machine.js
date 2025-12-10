@@ -1,4 +1,4 @@
-const API = "http://rls-uvzg.onrender.com";
+const API = "https://rls-uvzg.onrender.com";
 
 async function getMachine() {
     try {
