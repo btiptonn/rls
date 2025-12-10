@@ -1,4 +1,4 @@
-const API = "http://172.20.10.9:5000";
+const API = "http://rls-uvzg.onrender.com/";
 
 async function getMachine() {
     try {
@@ -9,3 +9,4 @@ async function getMachine() {
         return null;
     }
 }
+
