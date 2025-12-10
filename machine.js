@@ -1,12 +1,11 @@
-const API = "http://rls-uvzg.onrender.com/";
+const API = "http://rls-uvzg.onrender.com";
 
 async function getMachine() {
     try {
-        let res = await fetch(API + "/machine/get");
-        return await res.json();
+        let r = await fetch(API + "/machine/get");
+        return await r.json();
     } catch (e) {
-        console.log("Failed fetch", e);
+        console.log("Fetch error:", e);
         return null;
     }
 }
-
