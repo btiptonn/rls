@@ -1,160 +1,153 @@
-from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
+# ============================================================
+#  RESIDENTIAL LAUNDRY SYSTEM — BACKEND (REVISED + WORKING)
+# ============================================================
 
-app = Flask(__name__)
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+import urllib.request
+import urllib.parse
 
-machine = {
+# ------------------------------------------------------------
+#  TEXTBELT CONFIG
+# ------------------------------------------------------------
+PHONE_NUMBER = "+12569246101"
+TEXTBELT_KEY = "797d161d1c256b18b56a937777d3011de59b4c0eiaUVHwbOvxFgv01X2jDWEyWye"
+
+PORT = 10000
+
+
+# ------------------------------------------------------------
+#  SIMPLE HTTP POST WRAPPER
+# ------------------------------------------------------------
+def http_post(url, fields):
+    data = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(url, data=data)
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req) as resp:
+        return resp.read().decode()
+
+
+# ------------------------------------------------------------
+#  SEND SMS (PAID KEY)
+# ------------------------------------------------------------
+def send_sms(message):
+    print("📱 SEND SMS:", message)
+    try:
+        out = http_post("https://textbelt.com/text", {
+            "phone": PHONE_NUMBER,
+            "message": message,
+            "key": TEXTBELT_KEY
+        })
+        print("📨 TEXTBELT:", out)
+    except Exception as e:
+        print("❌ SMS ERROR:", e)
+
+
+# ------------------------------------------------------------
+#  GLOBAL STATE
+# ------------------------------------------------------------
+state = {
+    "rfid": "None",
     "state": "Idle",
-    "rfid": None,
-    "end_time": None
+    "time": "00:00",
+    "expected": 0
 }
 
-@app.post("/machine/start")
-def start():
-    data = request.jsonfrom flask import Flask, request, jsonify
-from flask_cors import CORS
-from datetime import datetime, timedelta
 
-app = Flask(__name__)
-CORS(app)
+# ------------------------------------------------------------
+#  REQUEST HANDLER
+# ------------------------------------------------------------
+class Handler(BaseHTTPRequestHandler):
 
-# -----------------------------
-# MACHINE STATE (REAL STORAGE)
-# -----------------------------
-machine = {
-    "state": "Idle",
-    "rfid": None,
-    "remaining_s": 0,
-    "expected": 0,
-    "last_update": None,
-    "log": []
-}
+    def _json(self, code=200):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
 
-def log(event, info=""):
-    machine["log"].insert(0, {
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "event": event,
-        "info": info,
-        "state": machine["state"],
-        "rfid": machine["rfid"]
-    })
-    machine["log"] = machine["log"][:50]
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
+    # ---------------------------
+    #  RECEIVE EVENT FROM PICO
+    # ---------------------------
+    def do_POST(self):
+        global state
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        try:
+            data = json.loads(body.decode())
+            event = data.get("event", "").lower()
+            edata = data.get("data", {})
 
-# ------------------------------------
-# POST: RFID update from the Pico
-# ------------------------------------
-@app.route("/machine/set_rfid", methods=["POST"])
-def set_rfid():
-    data = request.json
-    uid = data.get("rfid")
+            print("📩 EVENT:", event, edata)
 
-    if not uid:
-        return jsonify({"ok": False, "err": "missing_uid"}), 400
+            # ---------------- BOOT ----------------
+            if event == "boot":
+                state = {
+                    "rfid": "None",
+                    "state": "Booted",
+                    "time": "00:00",
+                    "expected": 0
+                }
 
-    machine["rfid"] = uid
-    log("RFID Scanned", uid)
+            # ---------------- START ----------------
+            elif event == "start":
+                uid = edata.get("uid", "None")
+                secs = int(edata.get("seconds", 0))
 
-    return jsonify({"ok": True})
+                mm = str(secs // 60).zfill(2)
+                ss = str(secs % 60).zfill(2)
 
+                state = {
+                    "rfid": uid,
+                    "state": "Running",
+                    "time": f"{mm}:{ss}",
+                    "expected": secs // 60
+                }
 
-# ------------------------------------
-# POST: start the washer cycle
-# ------------------------------------
-@app.route("/machine/start", methods=["POST"])
-def start_cycle():
-    data = request.json
-    minutes = data.get("minutes")
-    uid = data.get("rfid")
+            # ---------------- TICK ----------------
+            elif event == "tick":
+                rem = int(edata.get("remaining_s", 0))
+                mm = str(rem // 60).zfill(2)
+                ss = str(rem % 60).zfill(2)
+                state["time"] = f"{mm}:{ss}"
 
-    if not minutes:
-        return jsonify({"ok": False, "err": "missing_minutes"}), 400
+            # ---------------- COMPLETE ----------------
+            elif event == "complete":
+                state["state"] = "Complete"
+                state["time"] = "00:00"
+                send_sms("✅ Laundry cycle finished! Pick up your laundry.")
 
-    machine["state"] = "Running"
-    machine["rfid"] = uid
-    machine["expected"] = minutes
-    machine["remaining_s"] = minutes * 60
-    machine["last_update"] = datetime.utcnow()
+            # ---------------- ABORT ----------------
+            elif event == "abort":
+                state["state"] = "Aborted"
+                state["time"] = "00:00"
+                send_sms("⚠️ Laundry cycle aborted — no vibration detected.")
 
-    log("Cycle Started", f"{minutes} minutes")
+            self._json(200)
+            self.wfile.write(b'{"ok": true}')
 
-    return jsonify({"ok": True})
+        except Exception as e:
+            print("❌ SERVER ERROR:", e)
+            self._json(400)
+            self.wfile.write(b'{"ok": false}')
 
-
-# ------------------------------------
-# GET: washer status (washer.html calls this)
-# ------------------------------------
-@app.route("/machine/get")
-def get_machine():
-
-    # update remaining time
-    if machine["state"] == "Running" and machine["last_update"]:
-        delta = datetime.utcnow() - machine["last_update"]
-        passed = int(delta.total_seconds())
-        machine["remaining_s"] = max(0, machine["remaining_s"] - passed)
-        machine["last_update"] = datetime.utcnow()
-
-        if machine["remaining_s"] <= 0:
-            machine["state"] = "Finished"
-            log("Cycle Finished")
-
-    return jsonify({
-        "ok": True,
-        "state": machine["state"],
-        "remaining_s": machine["remaining_s"],
-        "rfid": machine["rfid"],
-        "log": machine["log"]
-    })
+    # ---------------------------
+    #  SERVE STATE TO WEB
+    # ---------------------------
+    def do_GET(self):
+        if self.path == "/api/state":
+            self._json(200)
+            self.wfile.write(json.dumps(state).encode())
+        else:
+            self._json(404)
+            self.wfile.write(b"{}")
 
 
-# ------------------------------------
-# ROOT
-# ------------------------------------
-@app.route("/")
-def home():
-    return jsonify({"ok": True, "service": "RLS Laundry API Server"})
-
-
-# ------------------------------------
-# START SERVER
-# ------------------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0
-
-    minutes = data.get("minutes")
-    rfid = data.get("rfid")
-
-    machine["state"] = "Running"
-    machine["rfid"] = rfid
-    machine["end_time"] = datetime.utcnow() + timedelta(minutes=minutes)
-
-    return jsonify({"ok": True})
-
-@app.post("/machine/reset")
-def reset():
-    machine["state"] = "Idle"
-    machine["rfid"] = None
-    machine["end_time"] = None
-    return jsonify({"ok": True})
-
-@app.get("/machine/get")
-def get_state():
-    if machine["state"] == "Running":
-        remaining = int((machine["end_time"] - datetime.utcnow()).total_seconds())
-        if remaining <= 0:
-            machine["state"] = "Idle"
-            machine["rfid"] = None
-            machine["end_time"] = None
-            remaining = 0
-    else:
-        remaining = 0
-
-    return jsonify({
-        "state": machine["state"],
-        "rfid": machine["rfid"],
-        "remaining": remaining
-    })
-
-@app.get("/")
-def home():
-    return "ok:true"
+print(f"🚀 BACKEND RUNNING ON PORT {PORT}")
+HTTPServer(("", PORT), Handler).serve_forever()
