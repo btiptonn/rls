@@ -10,25 +10,28 @@ machine = {
 }
 
 @app.post("/machine/start")
-def machine_start():
+def start():
     data = request.json
-    machine["rfid"] = data["rfid"]
-    minutes = data.get("minutes", 45)
+    minutes = data.get("minutes")
+    rfid = data.get("rfid")
+
     machine["state"] = "Running"
+    machine["rfid"] = rfid
     machine["end_time"] = datetime.utcnow() + timedelta(minutes=minutes)
+
     return jsonify({"ok": True})
 
 @app.post("/machine/reset")
-def machine_reset():
+def reset():
     machine["state"] = "Idle"
     machine["rfid"] = None
     machine["end_time"] = None
     return jsonify({"ok": True})
 
 @app.get("/machine/get")
-def machine_get():
+def get_state():
     if machine["state"] == "Running":
-        remaining = (machine["end_time"] - datetime.utcnow()).total_seconds()
+        remaining = int((machine["end_time"] - datetime.utcnow()).total_seconds())
         if remaining <= 0:
             machine["state"] = "Idle"
             machine["rfid"] = None
@@ -40,7 +43,9 @@ def machine_get():
     return jsonify({
         "state": machine["state"],
         "rfid": machine["rfid"],
-        "remaining": int(remaining)
+        "remaining": remaining
     })
 
-app.run(host="0.0.0.0", port=5000)
+@app.get("/")
+def home():
+    return "ok:true"
