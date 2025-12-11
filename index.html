@@ -75,6 +75,7 @@
     .aborted { background: #e24b4b; }
     .complete { background: #408ef5; }
     .locked { background: #a56de2; }
+    .booted { background: #f6c744; }
     .idle { background: #7c8ca1; }
 
     .guide {
@@ -113,9 +114,9 @@
         <li>Scan your RFID tag to unlock the washer.</li>
         <li>Select a cycle time: 30, 45, or 60 minutes.</li>
         <li>The machine will detect vibration automatically.</li>
-        <li>If the system appears <strong>In Use</strong>, the previous user must rescan.</li>
-        <li>If previous user failed to scan out → reset with a new RFID (Purple LED).</li>
-        <li>When finished, remove laundry and scan out.</li>
+        <li>If the system appears <strong>Locked</strong>, that load belongs to the last user.</li>
+        <li>If the system appears <strong>Aborted</strong>, the machine stopped due to no vibration.</li>
+        <li>When finished, remove laundry; the system switches to Locked after 20 minutes.</li>
         <li>You receive SMS alerts when cycles complete or abort.</li>
       </ul>
     </section>
@@ -140,9 +141,10 @@
 
         statusText.textContent =
           state === "Running"  ? `Running (${data.time})` :
-          state === "Aborted"  ? "Aborted — Pending Scan-Out" :
-          state === "Complete" ? "Complete — Pending Scan-Out" :
-          state === "Locked"   ? "Locked — Awaiting Scan-Out" :
+          state === "Aborted"  ? "Aborted — Pending Attention" :
+          state === "Complete" ? "Complete — Waiting 20 min grace" :
+          state === "Locked"   ? "Locked — Belongs to last user" :
+          state === "Booted"   ? "Booting / Initializing" :
           "Machine Open";
       } catch {
         washerBtn.className = "floor-btn idle";
