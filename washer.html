@@ -63,6 +63,7 @@
     .red   { background: #e24b4b; }
     .blue  { background: #408ef5; }
     .yellow{ background: #f5d547; }
+    .purple{ background: #a56de2; }
     .gray  { background: #c5c5c5; }
 
     .log {
@@ -111,8 +112,8 @@ const API = "https://rls-uvzg.onrender.com/api/state";
 let last = { state:"", rfid:"" };
 let countdown = 0, active = false;
 
-function parse(t){
-  if(!t.includes(":")) return null;
+function parseTime(t){
+  if(!t || !t.includes(":")) return null;
   let [m,s] = t.split(":").map(Number);
   return m*60 + s;
 }
@@ -122,32 +123,43 @@ async function fetchState(){
     let res = await fetch(API,{cache:"no-store"});
     let d  = await res.json();
 
-    document.getElementById("rfidText").textContent = d.rfid;
-    document.getElementById("stateText").textContent = d.state;
+    document.getElementById("rfidText").textContent   = d.rfid;
+    document.getElementById("stateText").textContent  = d.state;
     document.getElementById("expectedText").textContent = d.expected;
 
     let led = document.getElementById("led");
     led.className = "led " + (
-      d.state === "Running" ? "green" :
-      d.state === "Complete"? "blue"  :
-      d.state === "Aborted" ? "red"   :
-      d.state === "Booted"  ? "yellow": "gray"
+      d.state === "Running"  ? "green"  :
+      d.state === "Complete" ? "blue"   :
+      d.state === "Aborted"  ? "red"    :
+      d.state === "Locked"   ? "purple" :
+      d.state === "Booted"   ? "yellow" :
+      "gray"
     );
 
-    let serverSeconds = parse(d.time);
+    let serverSeconds = parseTime(d.time);
 
     if(d.state === "Running"){
       if(!active || last.state !== "Running"){
-        countdown = serverSeconds;
+        countdown = serverSeconds || 0;
         active = true;
         addLog(`Cycle started (${d.time})`);
       }
     } else {
       active = false;
-      if(d.state === "Complete") addLog("Cycle complete!");
-      if(d.state === "Aborted")  addLog("Cycle aborted.");
-      countdown = 0;
-      document.getElementById("timerText").textContent = "00:00";
+      if(d.state === "Complete" && last.state !== "Complete"){
+        addLog("Cycle complete!");
+      }
+      if(d.state === "Aborted" && last.state !== "Aborted"){
+        addLog("Cycle aborted.");
+      }
+      if(d.state === "Locked" && last.state !== "Locked"){
+        addLog("Machine locked (belongs to last RFID).");
+      }
+      if(d.state !== "Running"){
+        countdown = 0;
+        document.getElementById("timerText").textContent = "00:00";
+      }
     }
 
     if(last.state !== d.state || last.rfid !== d.rfid){
